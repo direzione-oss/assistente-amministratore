@@ -2514,32 +2514,25 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       {/* AREA PRINCIPALE */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* HEADER SUPERIORE */}
-        <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-extrabold text-slate-950 text-sm shadow shrink-0">
-              R5
+        <header className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-30 shadow-sm">
+          {!IS_EMBED_MODE && (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-extrabold text-slate-950 text-sm shadow shrink-0">
+                R5
+              </div>
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-200 truncate">
+                Studio Serra • Rendiconti
+              </span>
+              <span className="text-xs text-slate-500 hidden xl:inline truncate">
+                Controllo adempimenti, recupero contatori acqua/riscaldamento e redazione bilanci
+              </span>
             </div>
-            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-200 truncate">
-              Studio Serra • Rendiconti
-            </span>
-            <span className="text-xs text-slate-500 hidden lg:inline truncate">
-              Controllo adempimenti, recupero contatori acqua/riscaldamento e redazione bilanci
-            </span>
-          </div>
+          )}
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <button
-              onClick={openDesktopWidgetPopup}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 text-xs font-bold transition shadow-sm cursor-pointer"
-              title="Apri il Riquadro Widget compatto per il Desktop"
-            >
-              <LayoutDashboard className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">Widget Desktop</span>
-            </button>
-
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setShowMobileModal(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold transition shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold transition shadow-sm"
               title="Apri sul cellulare tramite QR Code Wi-Fi"
             >
               <Smartphone className="w-4 h-4 text-indigo-600 shrink-0" />
@@ -2549,23 +2542,23 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
             <button
               onClick={() => setActiveTab('assemblee')}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold transition shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold transition shadow-sm"
             >
-              <Users className="w-4 h-4 text-purple-600" />
+              <Users className="w-4 h-4 text-purple-600 shrink-0" />
               <span>Gestione Assemblee</span>
             </button>
 
             <button
               onClick={() => setActiveTab('rendiconto')}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition shadow-sm"
             >
-              <FileSpreadsheet className="w-4 h-4 text-amber-600" />
+              <FileSpreadsheet className="w-4 h-4 text-amber-600 shrink-0" />
               <span>Procedura Modello 5</span>
             </button>
 
             <button
               onClick={() => setActiveTab('impostazioni')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border text-xs font-bold transition shadow-sm cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm cursor-pointer ${
                 activeTab === 'impostazioni'
                   ? 'bg-amber-500 text-slate-950 border-amber-600'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
@@ -2573,25 +2566,27 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               title="Impostazioni: modifica, aggiungi o elimina i passaggi del Rendiconto"
             >
               <Settings className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="hidden sm:inline">Impostazioni</span>
+              <span>Impostazioni</span>
             </button>
 
             <button
               onClick={() => loadAllData()}
               disabled={loading}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
               title="Ricarica dati"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
 
-            <button
-              onClick={onLogout}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 transition"
-              title="Esci dall'account"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            {!IS_EMBED_MODE && (
+              <button
+                onClick={onLogout}
+                className="p-1.5 rounded-xl border border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 transition"
+                title="Esci dall'account"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </header>
 
