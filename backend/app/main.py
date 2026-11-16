@@ -1,9 +1,10 @@
 import json
+import os
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session, joinedload
@@ -16,6 +17,9 @@ from .auth import (
     create_access_token,
     verify_access_token,
     extract_token,
+    get_client_ip,
+    check_login_rate_limit,
+    record_login_attempt,
 )
 
 from .database import engine, Base, get_db, SessionLocal
@@ -76,32 +80,69 @@ from .connectors.google_connector import GoogleWorkspaceConnector
 
 Base.metadata.create_all(bind=engine)
 
+_ENABLE_DOCS = os.environ.get("ENABLE_SWAGGER_DOCS", "false").lower() in ("1", "true", "yes")
+
 app = FastAPI(
     title="Assistente Amministratore di Condominio - CRM & Segretario AI",
     version="1.0.0",
+    docs_url="/docs" if _ENABLE_DOCS else None,
+    redoc_url="/redoc" if _ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if _ENABLE_DOCS else None,
 )
+
+_DEFAULT_ALLOWED_ORIGINS = [
+    "https://assistente.187.126.30.207.sslip.io",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8502",
+    "http://127.0.0.1:8502",
+    "http://localhost:8018",
+    "http://127.0.0.1:8018",
+]
+_EXTRA_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(dict.fromkeys(_DEFAULT_ALLOWED_ORIGINS + _EXTRA_ORIGINS)),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 
 _PUBLIC_API_PATHS = {"/api/health", "/api/auth/login", "/api/auth/logout"}
+_PROTECTED_DOC_PATHS = {"/docs", "/redoc", "/openapi.json"}
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
+    host = request.headers.get("host", "").split(":")[0].lower()
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
+    is_https = request.url.scheme == "https" or forwarded_proto == "https"
+
+    # Redirect automatico HTTP -> HTTPS sul dominio pubblico VPS
     if (
+        forwarded_proto == "http"
+        and host.endswith(".sslip.io")
+        and path != "/api/health"
+    ):
+        https_url = str(request.url).replace("http://", "https://", 1)
+        return RedirectResponse(url=https_url, status_code=308)
+
+    requires_auth = (
         AUTH_ENABLED
         and request.method != "OPTIONS"
-        and path.startswith("/api/")
-        and path not in _PUBLIC_API_PATHS
-    ):
+        and (
+            (path.startswith("/api/") and path not in _PUBLIC_API_PATHS)
+            or path in _PROTECTED_DOC_PATHS
+        )
+    )
+    if requires_auth:
         token = extract_token(request)
         user_email = verify_access_token(token)
         if not user_email:
@@ -110,7 +151,15 @@ async def auth_middleware(request: Request, call_next):
                 content={"detail": "Autenticazione richiesta"},
             )
         request.state.user_email = user_email
-    return await call_next(request)
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if is_https:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 class LoginRequest(BaseModel):
@@ -125,8 +174,19 @@ def health_check():
 
 @app.post("/api/auth/login")
 def login(payload: LoginRequest, request: Request):
+    client_ip = get_client_ip(request)
+    allowed, retry_after = check_login_rate_limit(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Troppi tentativi di accesso falliti. Riprova tra {retry_after} secondi.",
+        )
+
     if not verify_credentials(payload.email, payload.password):
+        record_login_attempt(client_ip, False)
         raise HTTPException(status_code=401, detail="Email o password non validi")
+
+    record_login_attempt(client_ip, True)
     email_clean = payload.email.strip().lower()
     token = create_access_token(email_clean)
     response = JSONResponse(
@@ -1115,14 +1175,30 @@ def save_integration_settings(
     return {"success": True, "messaggio": "Configurazioni salvate con successo."}
 
 
+_MAX_DANEA_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+_ALLOWED_DANEA_EXTENSIONS = {".csv", ".txt", ".xls", ".xlsx", ".xml", ".json"}
+
+
 @app.post("/api/integrations/danea/import")
 async def import_danea_file(
     tipo_import: str = Form("anagrafiche_saldi"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    content = await file.read()
-    return DaneaConnector.import_file(db, file.filename, content, tipo_import)
+    filename = (file.filename or "import.csv").strip()
+    ext = os.path.splitext(filename)[1].lower()
+    if ext and ext not in _ALLOWED_DANEA_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato file non consentito. Usa file CSV, TXT, XLS, XLSX, XML o JSON.",
+        )
+    content = await file.read(_MAX_DANEA_UPLOAD_BYTES + 1)
+    if len(content) > _MAX_DANEA_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="File troppo grande (dimensione massima consentita: 10 MB).",
+        )
+    return DaneaConnector.import_file(db, filename, content, tipo_import)
 
 
 @app.get("/api/integrations/danea/template", response_class=PlainTextResponse)
