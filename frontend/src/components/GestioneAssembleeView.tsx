@@ -78,8 +78,12 @@ export interface AssembleaStraordinariaItem {
   percentuale: number;
 }
 
+import { getRuntimeSchedeCache, saveSchedeToStorage } from './ProceduraRendicontoView';
+
 export const STORAGE_KEY_ASSEMBLEE_STRAORDINARIE = 'studio_serra_assemblee_straordinarie_v1';
 export const STORAGE_KEY_RENDICONTI_M5 = 'studio_serra_modello5_schede_v3';
+
+let _runtimeAssembleeCache: AssembleaStraordinariaItem[] = [];
 
 function findPassoByCode(passi: any[], code: string | number): any {
   if (!Array.isArray(passi)) return undefined;
@@ -454,32 +458,11 @@ export function deduplicateAssembleeList(
 }
 
 export function readLocalAssembleeStraordinarie(): AssembleaStraordinariaItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_ASSEMBLEE_STRAORDINARIE);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const deduped = deduplicateAssembleeList(parsed);
-    if (deduped.length !== parsed.length) {
-      try {
-        localStorage.setItem(STORAGE_KEY_ASSEMBLEE_STRAORDINARIE, JSON.stringify(deduped));
-      } catch {
-        // ignore
-      }
-    }
-    return deduped;
-  } catch {
-    return [];
-  }
+  return _runtimeAssembleeCache;
 }
 
 export function writeLocalAssembleeStraordinarie(list: AssembleaStraordinariaItem[]) {
-  try {
-    const deduped = deduplicateAssembleeList(list);
-    localStorage.setItem(STORAGE_KEY_ASSEMBLEE_STRAORDINARIE, JSON.stringify(deduped));
-  } catch {
-    // ignore storage errors
-  }
+  _runtimeAssembleeCache = deduplicateAssembleeList(list);
 }
 
 /**
@@ -689,41 +672,33 @@ export function ensureAllOrdinarieInAssembleeList(
   rendicontiByCondo?: Record<number, any>
 ): AssembleaStraordinariaItem[] {
   let workingList = deduplicateAssembleeList(currentList);
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_RENDICONTI_M5);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        // Se ci sono più schede per lo stesso condominio_id, privilegia quella che ha raggiunto il Passo #57 (100% pre-assemblea)
-        const latestByCondo = new Map<number, any>();
-        for (const scheda of parsed) {
-          if (scheda && scheda.condominio_id) {
-            const cid = Number(scheda.condominio_id);
-            const prev = latestByCondo.get(cid);
-            if (!prev) {
-              latestByCondo.set(cid, scheda);
-            } else {
-              const prevHas57 = Boolean(findPassoByCode(prev.passi || [], '57')?.fatto) || Number(prev.percentuale_fatto || 0) >= 100;
-              const currHas57 = Boolean(findPassoByCode(scheda.passi || [], '57')?.fatto) || Number(scheda.percentuale_fatto || 0) >= 100;
-              if (currHas57 || !prevHas57) {
-                latestByCondo.set(cid, scheda);
-              }
-            }
+  const parsed = getRuntimeSchedeCache();
+  if (Array.isArray(parsed)) {
+    // Se ci sono più schede per lo stesso condominio_id, privilegia quella che ha raggiunto il Passo #57 (100% pre-assemblea)
+    const latestByCondo = new Map<number, any>();
+    for (const scheda of parsed) {
+      if (scheda && scheda.condominio_id) {
+        const cid = Number(scheda.condominio_id);
+        const prev = latestByCondo.get(cid);
+        if (!prev) {
+          latestByCondo.set(cid, scheda);
+        } else {
+          const prevHas57 =
+            Boolean(findPassoByCode(prev.passi || [], '57')?.fatto) ||
+            Number(prev.percentuale_fatto || 0) >= 100;
+          const currHas57 =
+            Boolean(findPassoByCode(scheda.passi || [], '57')?.fatto) ||
+            Number(scheda.percentuale_fatto || 0) >= 100;
+          if (currHas57 || !prevHas57) {
+            latestByCondo.set(cid, scheda);
           }
-        }
-        for (const scheda of Array.from(latestByCondo.values())) {
-          const res = buildOrUpdateAssembleaOrdinariaInList(workingList, scheda, true);
-          if (res.changed) workingList = res.list;
-        }
-      } else if (parsed && typeof parsed === 'object') {
-        for (const key of Object.keys(parsed)) {
-          const res = buildOrUpdateAssembleaOrdinariaInList(workingList, parsed[key], true);
-          if (res.changed) workingList = res.list;
         }
       }
     }
-  } catch {
-    // ignore
+    for (const scheda of Array.from(latestByCondo.values())) {
+      const res = buildOrUpdateAssembleaOrdinariaInList(workingList, scheda, true);
+      if (res.changed) workingList = res.list;
+    }
   }
 
   if (rendicontiByCondo && Array.isArray(condomini)) {
@@ -848,9 +823,8 @@ export async function syncPassoAssembleaToRendiconto(
   let becameCompleted = isClosingStep62;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_RENDICONTI_M5);
-    if (raw) {
-      const parsed = JSON.parse(raw);
+    const parsed = getRuntimeSchedeCache();
+    if (Array.isArray(parsed)) {
       const condoId = Number(assemblea.condominio_id);
       const postCodes = new Set(['58', '59', '60', '61', '62']);
 
@@ -873,7 +847,6 @@ export async function syncPassoAssembleaToRendiconto(
             };
           }
 
-          // Se si clicca "Invio eventuali MAV" (Passo #62), spunta e chiude tutta la fase post-assemblea (58–62)
           if (isClosingStep62 && postCodes.has(codeStr) && !p.fatto) {
             return {
               ...p,
@@ -882,7 +855,6 @@ export async function syncPassoAssembleaToRendiconto(
             };
           }
 
-          // Se si deseleziona un passo 58–61 quando il 62 era spuntato, riapre anche il 62
           if (!nuovoFatto && stepId !== 'passo_62' && codeStr === '62' && p.fatto) {
             return {
               ...p,
@@ -911,36 +883,31 @@ export async function syncPassoAssembleaToRendiconto(
         };
       };
 
-      if (Array.isArray(parsed)) {
-        // Aggiorna tutte le schede del condominio e seleziona per il backend quella che ha raggiunto il Passo #57
-        let updatedAny = false;
-        for (let i = 0; i < parsed.length; i++) {
-          const s = parsed[i];
-          if (
-            (schedaIdToPatch && Number(s?.id) === Number(schedaIdToPatch)) ||
-            Number(s?.condominio_id) === condoId
-          ) {
-            const has57 =
-              Boolean(findPassoByCode(s?.passi || [], '57')?.fatto) ||
-              Number(s?.percentuale_fatto || 0) >= 100 ||
-              Boolean(s?.in_attesa_assemblea);
-            parsed[i] = updateSchedaObj(s);
-            if (has57 && s?.id) {
-              schedaIdToPatch = s.id;
-            }
-            updatedAny = true;
+      const nextCache = [...parsed];
+      let updatedAny = false;
+      for (let i = 0; i < nextCache.length; i++) {
+        const s = nextCache[i];
+        if (
+          (schedaIdToPatch && Number(s?.id) === Number(schedaIdToPatch)) ||
+          Number(s?.condominio_id) === condoId
+        ) {
+          const has57 =
+            Boolean(findPassoByCode(s?.passi || [], '57')?.fatto) ||
+            Number(s?.percentuale_fatto || 0) >= 100 ||
+            Boolean(s?.in_attesa_assemblea);
+          nextCache[i] = updateSchedaObj(s);
+          if (has57 && s?.id) {
+            schedaIdToPatch = s.id;
           }
+          updatedAny = true;
         }
-        if (updatedAny) {
-          localStorage.setItem(STORAGE_KEY_RENDICONTI_M5, JSON.stringify(parsed));
-        }
-      } else if (parsed && typeof parsed === 'object' && parsed[condoId]) {
-        parsed[condoId] = updateSchedaObj(parsed[condoId]);
-        localStorage.setItem(STORAGE_KEY_RENDICONTI_M5, JSON.stringify(parsed));
+      }
+      if (updatedAny) {
+        saveSchedeToStorage(nextCache);
       }
     }
   } catch {
-    // ignore storage error
+    // ignore runtime cache error
   }
 
   const base = apiBase || `http://${window.location.hostname}:8018`;
@@ -1028,9 +995,8 @@ export async function syncMetaAssembleaToRendiconto(
   let nextCampiExtra51: Record<string, string> | null = null;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_RENDICONTI_M5);
-    if (raw) {
-      const parsed = JSON.parse(raw);
+    const parsed = getRuntimeSchedeCache();
+    if (Array.isArray(parsed)) {
       const condoId = Number(assemblea.condominio_id);
 
       const updateSchedaMeta = (scheda: any) => {
@@ -1056,24 +1022,20 @@ export async function syncMetaAssembleaToRendiconto(
         };
       };
 
-      if (Array.isArray(parsed)) {
-        let targetIdx = -1;
-        for (let i = parsed.length - 1; i >= 0; i--) {
-          if (
-            (schedaIdToPatch && Number(parsed[i]?.id) === Number(schedaIdToPatch)) ||
-            Number(parsed[i]?.condominio_id) === condoId
-          ) {
-            targetIdx = i;
-            break;
-          }
+      const nextCache = [...parsed];
+      let targetIdx = -1;
+      for (let i = nextCache.length - 1; i >= 0; i--) {
+        if (
+          (schedaIdToPatch && Number(nextCache[i]?.id) === Number(schedaIdToPatch)) ||
+          Number(nextCache[i]?.condominio_id) === condoId
+        ) {
+          targetIdx = i;
+          break;
         }
-        if (targetIdx >= 0) {
-          parsed[targetIdx] = updateSchedaMeta(parsed[targetIdx]);
-          localStorage.setItem(STORAGE_KEY_RENDICONTI_M5, JSON.stringify(parsed));
-        }
-      } else if (parsed && typeof parsed === 'object' && parsed[condoId]) {
-        parsed[condoId] = updateSchedaMeta(parsed[condoId]);
-        localStorage.setItem(STORAGE_KEY_RENDICONTI_M5, JSON.stringify(parsed));
+      }
+      if (targetIdx >= 0) {
+        nextCache[targetIdx] = updateSchedaMeta(nextCache[targetIdx]);
+        saveSchedeToStorage(nextCache);
       }
     }
   } catch {
@@ -1223,16 +1185,10 @@ export const GestioneAssembleeView: React.FC<Props> = ({
     return { list: workingList, anyChanged: workingList.length !== baseList.length };
   };
 
-  // Carica assemblee dal backend unendole con quelle locali e con le Ordinarie da Rendiconto (Passi 58–62)
+  // Carica assemblee dal backend VPS e le sincronizza con le Ordinarie da Rendiconto (Passi 58–62)
   const fetchAssemblee = async () => {
     try {
-      let res = await fetch(`${apiBase}/api/assemblee-straordinarie`).catch(() => null);
-      if (!res || !res.ok) {
-        res = await fetch(`http://${window.location.hostname}:8018/api/assemblee-straordinarie`).catch(
-          () => null
-        );
-      }
-      const localList = readLocalAssembleeStraordinarie();
+      const res = await fetch(`${apiBase}/api/assemblee-straordinarie`).catch(() => null);
       const mergedMap = new Map<number, AssembleaStraordinariaItem>();
 
       if (res && res.ok) {
@@ -1241,13 +1197,9 @@ export const GestioneAssembleeView: React.FC<Props> = ({
           const m = calcolaMetricheAssemblea(s);
           mergedMap.set(s.id, { ...s, ...m });
         }
-      }
-      for (const loc of localList) {
-        const existing = mergedMap.get(loc.id);
-        if (!existing) {
+      } else {
+        for (const loc of readLocalAssembleeStraordinarie()) {
           mergedMap.set(loc.id, loc);
-        } else if (loc.passi_completati >= existing.passi_completati) {
-          mergedMap.set(loc.id, { ...existing, ...loc });
         }
       }
 

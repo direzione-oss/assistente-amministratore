@@ -316,20 +316,17 @@ export const ImpostazioniView: React.FC<ImpostazioniViewProps> = ({
       setIsCustom(true);
       setHasUnsavedChanges(false);
 
-      // Salva anche sul backend se raggiungibile
-      try {
-        await fetch(`${apiBase}/impostazioni/passi-rendiconto`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ passi: normalized }),
-        });
-      } catch {
-        // fallback locale già salvato in localStorage
-      }
+      // Salva sul database del server VPS
+      const endpointBase = apiBase ? `${apiBase}/api` : '/api';
+      await fetch(`${endpointBase}/impostazioni/passi-rendiconto`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passi: normalized }),
+      });
 
       onTemplateUpdated(normalized);
       onNotify(
-        `Impostazioni salvate! Tutti i condomini sono stati aggiornati con i ${normalized.length} passaggi.`
+        `Impostazioni salvate sul server! Tutti i condomini sono stati aggiornati con i ${normalized.length} passaggi.`
       );
     } finally {
       setSaving(false);
@@ -348,13 +345,10 @@ export const ImpostazioniView: React.FC<ImpostazioniViewProps> = ({
       setIsCustom(false);
       setHasUnsavedChanges(false);
 
-      try {
-        await fetch(`${apiBase}/impostazioni/passi-rendiconto/reset`, {
-          method: 'POST',
-        });
-      } catch {
-        // ignore offline
-      }
+      const endpointBase = apiBase ? `${apiBase}/api` : '/api';
+      await fetch(`${endpointBase}/impostazioni/passi-rendiconto/reset`, {
+        method: 'POST',
+      });
 
       onTemplateUpdated(defaults);
       onNotify('Ripristinato il Modello 5 originale (63 passaggi) su tutti i condomini!');

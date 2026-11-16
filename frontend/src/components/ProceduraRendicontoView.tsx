@@ -148,32 +148,15 @@ interface Props {
   templateVersion?: number;
 }
 
-const STORAGE_KEY_SCHEDE = 'studio_serra_modello5_schede_v3';
-const STORAGE_KEY_ACTIVE_SCHEDA = 'studio_serra_modello5_active_scheda_id';
-
 const RAW_PASSI_BY_ORDINE = new Map(RAW_PASSI_MODELLO_5.map((rp) => [rp.ordine, rp]));
 
+let _runtimeSchedeCache: SchedaRendiconto[] | null = null;
+let _runtimeActiveSchedaId: number | null = null;
+
+export const getRuntimeSchedeCache = (): SchedaRendiconto[] | null => _runtimeSchedeCache;
+
 export const saveSchedeToStorage = (schedeList: SchedaRendiconto[]) => {
-  try {
-    // Compatta i testi statici (descrizione passo, sezione, allegati ricalcolati, prompt standard)
-    // per ridurre il payload da ~6MB a ~350KB ed evitare QuotaExceededError su localStorage!
-    const compact = schedeList.map((s) => ({
-      ...s,
-      documenti_allegati: [],
-      prompt_slide_notebooklm:
-        s.prompt_slide_notebooklm === PROMPT_SLIDE_NOTEBOOKLM ? '' : s.prompt_slide_notebooklm,
-      prompt_podcast_notebooklm:
-        s.prompt_podcast_notebooklm === PROMPT_PODCAST_NOTEBOOKLM ? '' : s.prompt_podcast_notebooklm,
-      passi: (s.passi || []).map((p) => ({
-        ...p,
-        sezione: '',
-        descrizione: '',
-      })),
-    }));
-    localStorage.setItem(STORAGE_KEY_SCHEDE, JSON.stringify(compact));
-  } catch (e) {
-    console.warn('Errore salvataggio localStorage:', e);
-  }
+  _runtimeSchedeCache = schedeList;
 };
 
 export const rehydrateScheda = (s: SchedaRendiconto): SchedaRendiconto => {
@@ -209,64 +192,25 @@ const computeNextYearGestione = (gestioneStr: string): string => {
 };
 
 export const loadInitialSchede = (): SchedaRendiconto[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SCHEDE);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (
-        Array.isArray(parsed) &&
-        parsed.length > 0 &&
-        Array.isArray(parsed[0]?.passi) &&
-        parsed[0].passi.length > 0
-      ) {
-        return parsed.map((s: SchedaRendiconto) => rehydrateScheda(s));
-      }
-    }
-  } catch (e) {
-    console.warn('Ripristino fallback Modello 5:', e);
+  if (Array.isArray(_runtimeSchedeCache) && _runtimeSchedeCache.length > 0) {
+    return _runtimeSchedeCache;
   }
   const tpl = getCustomPassiTemplate();
   return FALLBACK_SCHEDE_RENDICONTO.map((s) => syncSchedaWithTemplate(s, tpl));
 };
 
 /**
- * Unisce le schede provenienti dal server preservando eventuali modifiche locali in corso di digitazione
- * senza scatenare raffiche di richieste PATCH o sovrascrivere stati già salvati sul backend.
+ * Unisce le schede provenienti dal server preservando esclusivamente eventuali modifiche in corso di digitazione
+ * non ancora inviate al backend. Il database sul server VPS è l'unica fonte di verità.
  */
 const mergeServerWithLocalSchede = (
   serverSchede: SchedaRendiconto[],
-  localSchede: SchedaRendiconto[],
+  _localSchede: SchedaRendiconto[],
   pendingStep: { schedaId: number; passoId: number; patch: Record<string, any> } | null,
   pendingHeader: { schedaId: number; patch: Record<string, any> } | null
 ): SchedaRendiconto[] => {
   return serverSchede.map((srv) => {
     let merged = srv;
-    const localScheda = localSchede.find((ls) => ls.id === srv.id);
-    if (localScheda && Array.isArray(localScheda.passi)) {
-      const srvDoneCount = (srv.passi || []).filter((p) => p.fatto).length;
-      const locDoneCount = localScheda.passi.filter((p) => p.fatto).length;
-      if (locDoneCount >= srvDoneCount) {
-        merged = {
-          ...merged,
-          passi: merged.passi.map((sp) => {
-            const lp = localScheda.passi.find(
-              (x) => x.id === sp.id || x.numero_codice === sp.numero_codice
-            );
-            if (!lp) return sp;
-            return {
-              ...sp,
-              fatto: sp.fatto || lp.fatto,
-              data_spunta: sp.data_spunta || lp.data_spunta,
-              note_passo: sp.note_passo || lp.note_passo,
-              campi_extra:
-                sp.campi_extra && Object.keys(sp.campi_extra).length > 0
-                  ? { ...(lp.campi_extra || {}), ...sp.campi_extra }
-                  : lp.campi_extra || sp.campi_extra,
-            };
-          }),
-        };
-      }
-    }
     if (pendingHeader && pendingHeader.schedaId === srv.id) {
       merged = { ...merged, ...pendingHeader.patch };
     }
@@ -317,13 +261,8 @@ export const ProceduraRendicontoView: React.FC<Props> = ({
         .find((s) => s.condominio_id === selectedCondominioId);
       if (latestForCondo) return latestForCondo.id;
     }
-    try {
-      const savedId = Number(localStorage.getItem(STORAGE_KEY_ACTIVE_SCHEDA));
-      if (savedId && init.some((s) => s.id === savedId)) {
-        return savedId;
-      }
-    } catch {
-      // ignore
+    if (_runtimeActiveSchedaId && init.some((s) => s.id === _runtimeActiveSchedaId)) {
+      return _runtimeActiveSchedaId;
     }
     return init[0]?.id || 1;
   });
@@ -338,11 +277,7 @@ export const ProceduraRendicontoView: React.FC<Props> = ({
       const nextId = typeof id === 'function' ? id(prev) : id;
       activeSchedaIdRef.current = nextId;
       if (nextId !== null) {
-        try {
-          localStorage.setItem(STORAGE_KEY_ACTIVE_SCHEDA, String(nextId));
-        } catch {
-          // ignore
-        }
+        _runtimeActiveSchedaId = nextId;
       }
       return nextId;
     });
@@ -437,11 +372,8 @@ export const ProceduraRendicontoView: React.FC<Props> = ({
             }
             setActiveSchedaId((prev) => {
               if (prev && merged.some((s) => s.id === prev)) return prev;
-              try {
-                const saved = Number(localStorage.getItem(STORAGE_KEY_ACTIVE_SCHEDA));
-                if (saved && merged.some((s) => s.id === saved)) return saved;
-              } catch {
-                // ignore
+              if (_runtimeActiveSchedaId && merged.some((s) => s.id === _runtimeActiveSchedaId)) {
+                return _runtimeActiveSchedaId;
               }
               return merged[0].id;
             });

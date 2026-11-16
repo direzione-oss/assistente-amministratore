@@ -44,6 +44,7 @@ import {
   ActiveRendicontoProgress,
   loadInitialSchede,
   saveSchedeToStorage,
+  getRuntimeSchedeCache,
 } from './components/ProceduraRendicontoView';
 import {
   GestioneAssembleeView,
@@ -152,75 +153,68 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       });
   }, []);
 
-  // Avanzamento procedura Rendiconto per condominio (sincronizzato da server + localStorage + sessione attiva)
+  // Avanzamento procedura Rendiconto per condominio (sincronizzato da server VPS + sessione attiva)
   // Esclude i 5 passi post-assemblea (58-62) dalla %: al passo 57 è 100% eseguito e passa in Attesa Assemblea.
   const readLocalSchedeProgress = (): Record<number, RendicontoProgressEntry> => {
     const map: Record<number, RendicontoProgressEntry> = {};
-    try {
-      const raw = localStorage.getItem('studio_serra_modello5_schede_v3');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          for (const s of parsed) {
-            if (s && typeof s.condominio_id === 'number') {
-              const passi = Array.isArray(s.passi) ? s.passi : [];
-              let entry: RendicontoProgressEntry;
-              if (passi.length > 0) {
-                const m = calcolaMetrichePassiRendiconto(passi);
-                entry = {
-                  schedaId: s.id,
-                  percentualeFatto: m.percentuale_fatto,
-                  passiCompletati: m.passi_completati,
-                  totalePassi: m.totale_passi,
-                  postAssembleaCompletati: m.post_assemblea_completati,
-                  postAssembleaTotale: m.post_assemblea_totale,
-                  inAttesaAssemblea: m.in_attesa_assemblea,
-                  gestione: s.gestione,
-                };
-              } else {
-                const tot = Number(s.totale_passi || 58);
-                const done = Math.min(tot, Number(s.passi_completati || 0));
-                const pct =
-                  s.percentuale_fatto !== undefined
-                    ? Number(s.percentuale_fatto)
-                    : done >= tot
-                      ? 100
-                      : Math.round((done / tot) * 1000) / 10;
-                const postDone = Number(s.post_assemblea_completati || 0);
-                const postTot = Number(s.post_assemblea_totale || 5);
-                const inAttesa = Boolean(s.in_attesa_assemblea ?? (pct >= 100 && postDone < postTot));
-                entry = {
-                  schedaId: s.id,
-                  percentualeFatto: pct,
-                  passiCompletati: done,
-                  totalePassi: tot,
-                  postAssembleaCompletati: postDone,
-                  postAssembleaTotale: postTot,
-                  inAttesaAssemblea: inAttesa,
-                  gestione: s.gestione,
-                };
-              }
-              const existing = map[s.condominio_id];
-              const isEntryClosed =
-                entry.percentualeFatto >= 100 &&
-                entry.postAssembleaCompletati >= (entry.postAssembleaTotale || 5);
-              if (
-                !existing ||
-                isEntryClosed ||
-                (entry.percentualeFatto >= existing.percentualeFatto &&
-                  (entry.percentualeFatto >= 100 ||
-                    entry.passiCompletati >= existing.passiCompletati ||
-                    entry.postAssembleaCompletati >= existing.postAssembleaCompletati ||
-                    entry.inAttesaAssemblea))
-              ) {
-                map[s.condominio_id] = entry;
-              }
-            }
+    const parsed = getRuntimeSchedeCache();
+    if (Array.isArray(parsed)) {
+      for (const s of parsed) {
+        if (s && typeof s.condominio_id === 'number') {
+          const passi = Array.isArray(s.passi) ? s.passi : [];
+          let entry: RendicontoProgressEntry;
+          if (passi.length > 0) {
+            const m = calcolaMetrichePassiRendiconto(passi);
+            entry = {
+              schedaId: s.id,
+              percentualeFatto: m.percentuale_fatto,
+              passiCompletati: m.passi_completati,
+              totalePassi: m.totale_passi,
+              postAssembleaCompletati: m.post_assemblea_completati,
+              postAssembleaTotale: m.post_assemblea_totale,
+              inAttesaAssemblea: m.in_attesa_assemblea,
+              gestione: s.gestione,
+            };
+          } else {
+            const tot = Number(s.totale_passi || 58);
+            const done = Math.min(tot, Number(s.passi_completati || 0));
+            const pct =
+              s.percentuale_fatto !== undefined
+                ? Number(s.percentuale_fatto)
+                : done >= tot
+                  ? 100
+                  : Math.round((done / tot) * 1000) / 10;
+            const postDone = Number(s.post_assemblea_completati || 0);
+            const postTot = Number(s.post_assemblea_totale || 5);
+            const inAttesa = Boolean(s.in_attesa_assemblea ?? (pct >= 100 && postDone < postTot));
+            entry = {
+              schedaId: s.id,
+              percentualeFatto: pct,
+              passiCompletati: done,
+              totalePassi: tot,
+              postAssembleaCompletati: postDone,
+              postAssembleaTotale: postTot,
+              inAttesaAssemblea: inAttesa,
+              gestione: s.gestione,
+            };
+          }
+          const existing = map[s.condominio_id];
+          const isEntryClosed =
+            entry.percentualeFatto >= 100 &&
+            entry.postAssembleaCompletati >= (entry.postAssembleaTotale || 5);
+          if (
+            !existing ||
+            isEntryClosed ||
+            (entry.percentualeFatto >= existing.percentualeFatto &&
+              (entry.percentualeFatto >= 100 ||
+                entry.passiCompletati >= existing.passiCompletati ||
+                entry.postAssembleaCompletati >= existing.postAssembleaCompletati ||
+                entry.inAttesaAssemblea))
+          ) {
+            map[s.condominio_id] = entry;
           }
         }
       }
-    } catch {
-      // ignore
     }
     return map;
   };
@@ -311,8 +305,10 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     };
   };
 
-  // Persistenza locale e sincronizzazione cross-window (App <-> Widget) dei documenti necessari
-  const STORAGE_KEY_CONDOMINI_DOCS = 'studio_serra_condomini_docs_v1';
+  // Stato in memoria (nessun salvataggio in localStorage) per le modifiche ai documenti in corso d'invio al server VPS
+  const runtimeCondoDocsMapRef = React.useRef<
+    Record<number, { updatedAt: number; syncedToServer?: boolean; documenti: DocumentoNecessario[] }>
+  >({});
 
   const computeCondoWithDocs = (c: any, docs: DocumentoNecessario[]) => {
     const docRichiesti = docs.filter((d) => d.richiesto);
@@ -334,14 +330,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     number,
     { updatedAt: number; syncedToServer?: boolean; documenti: DocumentoNecessario[] }
   > => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_CONDOMINI_DOCS);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
+    return runtimeCondoDocsMapRef.current;
   };
 
   const writeLocalCondoDocsEntry = (
@@ -350,17 +339,11 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     syncedToServer: boolean,
     updatedAt = Date.now()
   ) => {
-    try {
-      const map = readLocalCondoDocsMap();
-      map[condoId] = {
-        updatedAt,
-        syncedToServer,
-        documenti,
-      };
-      localStorage.setItem(STORAGE_KEY_CONDOMINI_DOCS, JSON.stringify(map));
-    } catch {
-      // ignore quota errors
-    }
+    runtimeCondoDocsMapRef.current[condoId] = {
+      updatedAt,
+      syncedToServer,
+      documenti,
+    };
   };
 
   const applyLocalDocsToCondomini = (
@@ -579,29 +562,6 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             computeCondoWithDocs(c, getDocumentiCondominio(c))
           );
           const merged = applyLocalDocsToCondomini(normalized, false);
-          // Aggiorna anche la cache locale coi dati confermati dal server per i condomini sincronizzati
-          const localMap = readLocalCondoDocsMap();
-          const now = Date.now();
-          for (const c of merged) {
-            const loc = localMap[c.id];
-            const isBusy =
-              Boolean(docSaveTimeoutRef.current[c.id]) ||
-              Boolean(inFlightDocSavesRef.current[c.id]) ||
-              (loc && (!loc.syncedToServer || now - (loc.updatedAt || 0) < 15000));
-            const docs = getDocumentiCondominio(c);
-            if (!isBusy && Array.isArray(docs) && docs.length > 0) {
-              localMap[c.id] = {
-                updatedAt: loc?.updatedAt || now,
-                syncedToServer: true,
-                documenti: docs,
-              };
-            }
-          }
-          try {
-            localStorage.setItem(STORAGE_KEY_CONDOMINI_DOCS, JSON.stringify(localMap));
-          } catch {
-            // ignore
-          }
           condominiRef.current = merged;
           setCondomini(merged);
         }
@@ -609,8 +569,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       if (rRes && rRes.ok) {
         const rData = await rRes.json();
         if (Array.isArray(rData)) {
-          const localMap = readLocalSchedeProgress();
-          const nextMap: Record<number, RendicontoProgressEntry> = { ...localMap };
+          const nextMap: Record<number, RendicontoProgressEntry> = {};
           for (const s of rData) {
             if (s && typeof s.condominio_id === 'number') {
               const passi = Array.isArray(s.passi) ? s.passi : [];
@@ -652,27 +611,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                   gestione: s.gestione,
                 };
               }
-              const loc = nextMap[s.condominio_id] || localMap[s.condominio_id];
-              const locClosed =
-                loc &&
-                loc.percentualeFatto >= 100 &&
-                loc.postAssembleaCompletati >= (loc.postAssembleaTotale || 5);
-              const srvClosed =
-                srvEntry.percentualeFatto >= 100 &&
-                srvEntry.postAssembleaCompletati >= (srvEntry.postAssembleaTotale || 5);
-              if (
-                loc &&
-                (locClosed ||
-                  loc.percentualeFatto > srvEntry.percentualeFatto ||
-                  loc.passiCompletati > srvEntry.passiCompletati ||
-                  (loc.percentualeFatto >= srvEntry.percentualeFatto &&
-                    loc.postAssembleaCompletati > srvEntry.postAssembleaCompletati) ||
-                  (loc.inAttesaAssemblea && !srvEntry.inAttesaAssemblea && !srvClosed))
-              ) {
-                nextMap[s.condominio_id] = loc;
-              } else {
-                nextMap[s.condominio_id] = srvEntry;
-              }
+              nextMap[s.condominio_id] = srvEntry;
             }
           }
           setRendicontiByCondo(nextMap);
@@ -681,19 +620,10 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       if (aRes && aRes.ok) {
         const aData = await aRes.json();
         if (Array.isArray(aData)) {
-          const localList = readLocalAssembleeStraordinarie();
           const mergedMap = new Map<number, AssembleaStraordinariaItem>();
           for (const s of aData) {
             const m = calcolaMetricheAssemblea(s);
             mergedMap.set(s.id, { ...s, ...m });
-          }
-          for (const loc of localList) {
-            const existing = mergedMap.get(loc.id);
-            if (!existing) {
-              mergedMap.set(loc.id, loc);
-            } else if (loc.passi_completati >= existing.passi_completati) {
-              mergedMap.set(loc.id, { ...existing, ...loc });
-            }
           }
           const merged = deduplicateAssembleeList(
             Array.from(mergedMap.values()).sort((a, b) => b.id - a.id)
@@ -1000,28 +930,8 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     const initial = applyLocalDocsToCondomini(condominiStudioSerra, true);
     condominiRef.current = initial;
     setCondomini(initial);
-    setRendicontiByCondo((prev) => ({ ...prev, ...readLocalSchedeProgress() }));
     loadAllData();
   }, [DATA_SYNC_VERSION]);
-
-  // Ascolta l'evento storage per sincronizzazione istantanea tra Widget Desktop e Finestra Principale
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY_CONDOMINI_DOCS) {
-        setCondomini((prev) => {
-          const next = applyLocalDocsToCondomini(prev, true);
-          condominiRef.current = next;
-          return next;
-        });
-      } else if (e.key === 'studio_serra_modello5_schede_v3') {
-        setRendicontiByCondo((prev) => ({ ...prev, ...readLocalSchedeProgress() }));
-      } else if (e.key === STORAGE_KEY_ASSEMBLEE_STRAORDINARIE) {
-        setAssembleeStraordinarie(readLocalAssembleeStraordinarie());
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
 
   // Sincronizzazione automatica continua tra Cellulare, Widget e PC (ogni 8 secondi, al cambio tab e al ritorno sulla finestra)
   useEffect(() => {

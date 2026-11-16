@@ -474,48 +474,27 @@ export function normalizePassiTemplateFrontend(list: Partial<CustomPassoTemplate
   });
 }
 
+let _runtimeCustomPassiTemplate: CustomPassoTemplate[] | null = null;
+
 export function isCustomPassiTemplateActive(): boolean {
-  try {
-    const raw = localStorage.getItem(CUSTOM_PASSI_STORAGE_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0;
-  } catch {
-    return false;
-  }
+  return Array.isArray(_runtimeCustomPassiTemplate) && _runtimeCustomPassiTemplate.length > 0;
 }
 
 export function getCustomPassiTemplate(): CustomPassoTemplate[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_PASSI_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return normalizePassiTemplateFrontend(parsed);
-      }
-    }
-  } catch {
-    // ignore storage errors
+  if (Array.isArray(_runtimeCustomPassiTemplate) && _runtimeCustomPassiTemplate.length > 0) {
+    return _runtimeCustomPassiTemplate;
   }
   return getDefaultPassiTemplate();
 }
 
 export function saveCustomPassiTemplate(list: Partial<CustomPassoTemplate>[]): CustomPassoTemplate[] {
   const normalized = normalizePassiTemplateFrontend(list);
-  try {
-    localStorage.setItem(CUSTOM_PASSI_STORAGE_KEY, JSON.stringify(normalized));
-  } catch {
-    // ignore storage errors
-  }
+  _runtimeCustomPassiTemplate = normalized;
   return normalized;
 }
 
 export function resetCustomPassiTemplate(): CustomPassoTemplate[] {
-  try {
-    localStorage.removeItem(CUSTOM_PASSI_STORAGE_KEY);
-  } catch {
-    // ignore storage errors
-  }
+  _runtimeCustomPassiTemplate = null;
   return getDefaultPassiTemplate();
 }
 

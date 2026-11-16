@@ -1,6 +1,25 @@
 export const AUTH_TOKEN_KEY = 'assistente_auth_token';
 export const AUTH_UNAUTHORIZED_EVENT = 'assistente:unauthorized';
 
+const LEGACY_LOCAL_DATA_KEYS = [
+  'studio_serra_modello5_schede_v3',
+  'studio_serra_modello5_active_scheda_id',
+  'studio_serra_assemblee_straordinarie_v1',
+  'studio_serra_assemblee_straordinarie_v2',
+  'studio_serra_condomini_docs_v1',
+  'studio_serra_custom_passi_template_v1',
+];
+
+export function purgeLegacyLocalData(): void {
+  try {
+    for (const key of LEGACY_LOCAL_DATA_KEYS) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore storage error
+  }
+}
+
 export function getStoredToken(): string | null {
   try {
     return localStorage.getItem(AUTH_TOKEN_KEY);
@@ -20,6 +39,7 @@ export function setStoredToken(token: string): void {
 export function clearStoredToken(): void {
   try {
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    purgeLegacyLocalData();
   } catch {
     // ignore storage error
   }
@@ -28,6 +48,9 @@ export function clearStoredToken(): void {
 let interceptorInstalled = false;
 
 export function installAuthFetchInterceptor(): void {
+  if (typeof window !== 'undefined') {
+    purgeLegacyLocalData();
+  }
   if (interceptorInstalled || typeof window === 'undefined') return;
   interceptorInstalled = true;
 
