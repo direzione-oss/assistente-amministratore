@@ -29,6 +29,8 @@ class AnagraficaOut(AnagraficaBase):
 
 class CondominioBase(BaseModel):
     codice_danea: Optional[str] = None
+    danea_id: Optional[int] = None
+    attivo: bool = True
     nome: str
     indirizzo: Optional[str] = "Da specificare"
     citta: Optional[str] = "Bergamo"

@@ -146,3 +146,18 @@ def extract_token(request: Request) -> Optional[str]:
     if cookie_token:
         return cookie_token.strip()
     return None
+
+
+def get_bridge_secret() -> str:
+    env_secret = os.environ.get("DETTOFATTO_BRIDGE_SECRET", "").strip()
+    if env_secret:
+        return env_secret
+    return hashlib.sha256(b"dettofatto-assistente-bridge-2026-serrastudio").hexdigest()
+
+
+def verify_bridge_request(request: Request) -> bool:
+    """Consente richieste autenticate dal server Next.js di DettoFatto."""
+    provided = request.headers.get("X-DettoFatto-Bridge", "").strip()
+    if not provided:
+        return False
+    return hmac.compare_digest(provided, get_bridge_secret())

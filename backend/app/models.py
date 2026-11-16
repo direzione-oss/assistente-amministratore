@@ -18,6 +18,8 @@ class Condominio(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     codice_danea = Column(String(50), unique=True, index=True)
+    danea_id = Column(Integer, index=True, nullable=True)
+    attivo = Column(Boolean, default=True, nullable=False)
     nome = Column(String(200), nullable=False)
     indirizzo = Column(String(250), nullable=True)
     citta = Column(String(100), default="Bergamo")

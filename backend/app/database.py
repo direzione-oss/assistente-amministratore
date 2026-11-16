@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +13,16 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+def migrate_db():
+    """Aggiunge in modo non distruttivo le colonne introdotte dopo la creazione iniziale."""
+    with engine.begin() as conn:
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(condomini)")).fetchall()}
+        if "danea_id" not in cols:
+            conn.execute(text("ALTER TABLE condomini ADD COLUMN danea_id INTEGER"))
+        if "attivo" not in cols:
+            conn.execute(text("ALTER TABLE condomini ADD COLUMN attivo BOOLEAN NOT NULL DEFAULT 1"))
 
 
 def get_db():

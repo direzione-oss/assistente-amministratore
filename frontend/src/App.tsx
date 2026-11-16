@@ -70,7 +70,14 @@ import {
 } from './data/modello5Fallback';
 import condominiStudioSerra from './data/condominiStudioSerra.json';
 
-const API_BASE = '';
+const API_BASE =
+  typeof window !== 'undefined' && window.location.pathname.startsWith('/assistente')
+    ? '/assistente'
+    : '';
+const IS_EMBED_MODE =
+  typeof window !== 'undefined' &&
+  (new URLSearchParams(window.location.search).get('embed') === '1' ||
+    window.location.pathname.startsWith('/assistente'));
 const DATA_SYNC_VERSION = '2026-10-18-v5';
 
 type TabType = 'dashboard' | 'condomini' | 'rendiconto' | 'assemblee' | 'impostazioni';
@@ -5471,7 +5478,7 @@ export default function App() {
     let active = true;
     const verifySession = async () => {
       try {
-        const res = await fetch('/api/auth/me', {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
           headers: getStoredToken() ? { Authorization: `Bearer ${getStoredToken()}` } : undefined,
           credentials: 'same-origin',
         });
@@ -5491,7 +5498,9 @@ export default function App() {
     verifySession();
 
     const handleUnauthorized = () => {
-      setAuthStatus('unauthenticated');
+      if (!IS_EMBED_MODE) {
+        setAuthStatus('unauthenticated');
+      }
     };
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => {
@@ -5503,7 +5512,7 @@ export default function App() {
   const handleLogout = async () => {
     clearStoredToken();
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'same-origin' });
     } catch {
       // ignore
     }
@@ -5512,10 +5521,10 @@ export default function App() {
 
   if (authStatus === 'checking') {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+      <div className={`min-h-screen flex items-center justify-center ${IS_EMBED_MODE ? 'bg-slate-50 text-slate-700' : 'bg-slate-950 text-white'}`}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
-          <span className="text-sm text-slate-300">Verifica accesso in corso...</span>
+          <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-600 rounded-full animate-spin" />
+          <span className={`text-sm ${IS_EMBED_MODE ? 'text-slate-600' : 'text-slate-300'}`}>Verifica accesso in corso...</span>
         </div>
       </div>
     );

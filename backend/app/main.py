@@ -11,18 +11,20 @@ from sqlalchemy.orm import Session, joinedload
 
 from .auth import (
     AUTH_ENABLED,
+    ADMIN_EMAIL,
     AUTH_COOKIE_NAME,
     TOKEN_TTL_SECONDS,
     verify_credentials,
     create_access_token,
     verify_access_token,
+    verify_bridge_request,
     extract_token,
     get_client_ip,
     check_login_rate_limit,
     record_login_attempt,
 )
 
-from .database import engine, Base, get_db, SessionLocal
+from .database import engine, Base, get_db, SessionLocal, migrate_db
 from .models import (
     Condominio,
     Anagrafica,
@@ -79,6 +81,7 @@ from .connectors.dettofatto_connector import DettoFattoConnector
 from .connectors.google_connector import GoogleWorkspaceConnector
 
 Base.metadata.create_all(bind=engine)
+migrate_db()
 
 _ENABLE_DOCS = os.environ.get("ENABLE_SWAGGER_DOCS", "false").lower() in ("1", "true", "yes")
 
@@ -92,6 +95,7 @@ app = FastAPI(
 
 _DEFAULT_ALLOWED_ORIGINS = [
     "https://assistente.187.126.30.207.sslip.io",
+    "https://dettofatto.187.126.30.207.sslip.io",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8502",
@@ -110,7 +114,7 @@ app.add_middleware(
     allow_origins=list(dict.fromkeys(_DEFAULT_ALLOWED_ORIGINS + _EXTRA_ORIGINS)),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With", "X-DettoFatto-Bridge"],
 )
 
 
@@ -143,14 +147,17 @@ async def auth_middleware(request: Request, call_next):
         )
     )
     if requires_auth:
-        token = extract_token(request)
-        user_email = verify_access_token(token)
-        if not user_email:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Autenticazione richiesta"},
-            )
-        request.state.user_email = user_email
+        if verify_bridge_request(request):
+            request.state.user_email = ADMIN_EMAIL
+        else:
+            token = extract_token(request)
+            user_email = verify_access_token(token)
+            if not user_email:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Autenticazione richiesta"},
+                )
+            request.state.user_email = user_email
 
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -542,6 +549,168 @@ def list_condomini(db: Session = Depends(get_db)):
     )
     today = datetime.utcnow().date()
     return [_serialize_condominio(c, today) for c in conds]
+
+
+def _normalize_condo_name(name: str) -> str:
+    import re
+    s = (name or "").upper().strip()
+    s = s.replace("À", "A").replace("È", "E").replace("É", "E").replace("Ì", "I").replace("Ò", "O").replace("Ù", "U")
+    s = re.sub(r"[^A-Z0-9\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _strip_condo_prefixes(norm_name: str) -> str:
+    import re
+    prefixes = (
+        "COMPL COND E RES ",
+        "COMPL COND ",
+        "CONDOMINIO ",
+        "PARTI COMUNI DI VIA ",
+        "PARTI COMUNI ",
+        "RESIDENZA ",
+    )
+    s = norm_name
+    for p in prefixes:
+        if s.startswith(p):
+            s = s[len(p):].strip()
+    # Normalizza abbreviazioni comuni: S ANTONIO -> SANT ANTONIO / SANTO
+    s = re.sub(r"\bS\s+ANTONIO\b", "S ANTONIO", s)
+    return s
+
+
+@app.post("/api/condomini/sync-danea")
+def sync_condomini_from_danea(payload: dict, db: Session = Depends(get_db)):
+    """
+    Sincronizza in modo non distruttivo i condomini attivi scaricati da Danea/DettoFatto.
+    - Abbina i condomini esistenti (danea_id -> codice_fiscale -> nome normalizzato)
+      preservando integralmente schede rendiconto, passi, assemblee, ticket e comunicazioni.
+    - Crea gli eventuali nuovi condomini attivi mancanti.
+    - Marca attivo=False i condomini storici non presenti nella lista attiva, senza cancellarli.
+    """
+    incoming = payload.get("condomini") or []
+    if not isinstance(incoming, list) or len(incoming) == 0:
+        raise HTTPException(status_code=400, detail="Lista condomini Danea vuota o non valida")
+
+    existing_all = db.query(Condominio).all()
+    by_danea_id = {c.danea_id: c for c in existing_all if c.danea_id is not None}
+    by_cf = {
+        (c.codice_fiscale or "").strip().upper(): c
+        for c in existing_all
+        if (c.codice_fiscale or "").strip() not in ("", "-", "90000000000")
+    }
+    by_norm_name = {_normalize_condo_name(c.nome): c for c in existing_all}
+    by_stripped_name = {_strip_condo_prefixes(_normalize_condo_name(c.nome)): c for c in existing_all}
+
+    matched_ids = set()
+    updated = 0
+    created = 0
+    created_names: List[str] = []
+
+    for item in incoming:
+        raw_id = item.get("daneaId") or item.get("id") or item.get("danea_id")
+        try:
+            danea_id = int(raw_id) if raw_id is not None else None
+        except (TypeError, ValueError):
+            danea_id = None
+
+        nome = str(item.get("nome") or item.get("denominazione") or "").strip()
+        if not nome:
+            continue
+
+        cf = str(item.get("codiceFiscale") or item.get("codice_fiscale") or "").strip().upper()
+        indirizzo = str(item.get("indirizzo") or "").strip()
+        citta = str(item.get("citta") or "").strip()
+        cap = str(item.get("cap") or "").strip()
+        iban = str(item.get("iban") or "").strip()
+        inizio_es = str(item.get("inizioEsercizio") or item.get("data_inizio_esercizio") or "").strip()
+        try:
+            unita = int(item.get("numeroUnita") or item.get("numero_unita") or 0)
+        except (TypeError, ValueError):
+            unita = 0
+
+        cond = None
+        if danea_id is not None and danea_id in by_danea_id:
+            cond = by_danea_id[danea_id]
+        elif cf and cf not in ("-", "90000000000") and cf in by_cf:
+            cond = by_cf[cf]
+        else:
+            norm = _normalize_condo_name(nome)
+            stripped = _strip_condo_prefixes(norm)
+            cond = by_norm_name.get(norm) or by_stripped_name.get(stripped)
+            if not cond:
+                # Match tollerante per prefisso/contenimento univoco (es. GAMBA vs GAMBA 13)
+                candidates = [
+                    c for c in existing_all
+                    if c.id not in matched_ids and (
+                        _strip_condo_prefixes(_normalize_condo_name(c.nome)) in stripped
+                        or stripped in _strip_condo_prefixes(_normalize_condo_name(c.nome))
+                    )
+                    and len(_strip_condo_prefixes(_normalize_condo_name(c.nome))) >= 4
+                ]
+                if len(candidates) == 1:
+                    cond = candidates[0]
+
+        if cond:
+            if danea_id is not None:
+                cond.danea_id = danea_id
+            if cf and cf != "-":
+                cond.codice_fiscale = cf
+            if indirizzo:
+                cond.indirizzo = indirizzo
+            if citta:
+                cond.citta = citta
+            if cap:
+                cond.cap = cap
+            if iban:
+                cond.iban = iban
+            if unita > 0:
+                cond.numero_unita = unita
+            if inizio_es and not cond.data_inizio_esercizio:
+                cond.data_inizio_esercizio = inizio_es
+            cond.attivo = True
+            cond.ultimo_sync_danea = datetime.utcnow()
+            matched_ids.add(cond.id)
+            updated += 1
+        else:
+            cod_danea = f"DANEA-{danea_id}" if danea_id is not None else f"DANEA-{created + 1000}"
+            new_cond = Condominio(
+                codice_danea=cod_danea,
+                danea_id=danea_id,
+                attivo=True,
+                nome=nome,
+                indirizzo=indirizzo or "Da specificare",
+                citta=citta or "Bergamo",
+                cap=cap or "24128",
+                codice_fiscale=cf or None,
+                iban=iban or None,
+                numero_unita=unita,
+                data_inizio_esercizio=inizio_es or None,
+                ultimo_sync_danea=datetime.utcnow(),
+            )
+            db.add(new_cond)
+            db.flush()
+            create_scheda_for_condominio(db, new_cond)
+            matched_ids.add(new_cond.id)
+            created += 1
+            created_names.append(nome)
+
+    archived = 0
+    for c in existing_all:
+        if c.id not in matched_ids:
+            if c.attivo:
+                c.attivo = False
+                archived += 1
+
+    db.commit()
+    return {
+        "success": True,
+        "updated": updated,
+        "created": created,
+        "archived": archived,
+        "created_names": created_names,
+        "total_active": updated + created,
+    }
 
 
 @app.patch("/api/condomini/{condominio_id}/documenti-necessari")
