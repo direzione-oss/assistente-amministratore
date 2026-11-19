@@ -58,6 +58,9 @@ EMAIL_MITTENTE = os.environ.get("EMAIL_MITTENTE", "direzione@serrastudio.it")
 PASSWORD_EMAIL = os.environ.get("PASSWORD_EMAIL", "rdqoapqzseaifnrn")
 EMAIL_DESTINATARIO_STAFF = os.environ.get("EMAIL_DESTINATARIO_STAFF", "operativo@serrastudio.it")
 
+# Tecnico incaricato per sopralluoghi e verbali
+NOME_TECNICO = os.environ.get("NOME_TECNICO", "Gian Carlo ing. Serra")
+
 # Google Calendar OAuth (supporta file locale e volume persistente /app/data su VPS)
 _candidate_creds = [
     os.environ.get("GOOGLE_CREDENTIALS_PATH", ""),

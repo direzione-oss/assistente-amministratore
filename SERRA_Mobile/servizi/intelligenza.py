@@ -118,14 +118,15 @@ def ricerca_mirata_ia(nome_condominio, domanda):
     )
     return chiama_ia_testuale(prompt_ia)
 
-def genera_testo_ia(nome_condominio, testo_messaggio, data_ispezione, tipo="intervento"):
+def genera_testo_ia(nome_condominio, testo_messaggio, data_ispezione, tipo="intervento", tecnico=None):
+    nome_tecnico = tecnico or getattr(config, "NOME_TECNICO", "Gian Carlo ing. Serra")
     contesto_tipo = (
         "verbale tecnico di sopralluogo"
         if tipo == "sopralluogo"
         else "richiesta di intervento manutentivo"
     )
     prompt_ia = (
-        f"Sei un geometra/tecnico condominiale dello Studio Serra. Scrivi un {contesto_tipo} sintetico e "
+        f"Sei il tecnico rilevatore {nome_tecnico} dello Studio Serra. Scrivi un {contesto_tipo} sintetico e "
         f"professionale per '{nome_condominio}' (Data: {data_ispezione}). "
         f"Appunti rilevati sul campo: '{testo_messaggio}'. Usa un elenco puntato chiaro, massimo 4-5 righe."
     )

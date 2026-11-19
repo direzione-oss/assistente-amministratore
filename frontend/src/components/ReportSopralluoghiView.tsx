@@ -396,6 +396,9 @@ export const ReportSopralluoghiView: React.FC<ReportSopralluoghiViewProps> = ({ 
                           <Calendar className="w-3.5 h-3.5 text-slate-500" />
                           {report.data_modifica}
                         </span>
+                        <span className="text-xs text-slate-300 font-medium flex items-center gap-1 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
+                          Tecnico: <strong className="text-white">Gian Carlo ing. Serra</strong>
+                        </span>
                       </div>
 
                       <h3 className="text-base font-bold text-white truncate flex items-center gap-2">

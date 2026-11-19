@@ -2377,6 +2377,7 @@ class ChiudiSopralluogoRequest(BaseModel):
     appunti: str = ""
     foto: List[Dict[str, Any]] = []
     tipo: str = "sopralluogo"
+    tecnico: str = "Gian Carlo ing. Serra"
 
 
 @app.post("/api/serra-mobile/sopralluogo/chiudi")
@@ -2407,8 +2408,8 @@ def chiudi_sopralluogo_endpoint(payload: ChiudiSopralluogoRequest):
             if f.get("caption"):
                 testo_completo += f" {f['caption']}"
 
-        t_ia = genera_testo_ia(payload.condominio, testo_completo, payload.data, tipo=payload.tipo)
-        p_doc, p_pdf = crea_word_e_pdf(payload.condominio, t_ia, foto_paths, payload.data, payload.appunti, tipo=payload.tipo)
+        t_ia = genera_testo_ia(payload.condominio, testo_completo, payload.data, tipo=payload.tipo, tecnico=payload.tecnico)
+        p_doc, p_pdf = crea_word_e_pdf(payload.condominio, t_ia, foto_paths, payload.data, payload.appunti, tipo=payload.tipo, tecnico=payload.tecnico)
 
         ticket_res = None
         if payload.tipo == "intervento":

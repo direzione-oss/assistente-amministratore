@@ -37,7 +37,7 @@ def converti_docx_in_pdf(docx_path: str) -> str:
         print(f"⚠️ Errore conversione PDF {docx_path}: {e}")
     return ""
 
-def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -> tuple:
+def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo", tecnico=None) -> tuple:
     """
     Genera un report Word (.docx) impaginato professionalmente per Studio Serra
     e crea automaticamente la versione PDF (.pdf).
@@ -46,6 +46,8 @@ def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -
     if not docx:
         print("⚠️ python-docx non installato.")
         return "", ""
+
+    nome_tecnico = tecnico or getattr(config, "NOME_TECNICO", "Gian Carlo ing. Serra")
 
     doc = docx.Document()
 
@@ -79,8 +81,8 @@ def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -
     dati_table.cell(1, 0).paragraphs[0].add_run("Data Rilevazione:").bold = True
     dati_table.cell(1, 1).paragraphs[0].add_run(str(data))
     
-    dati_table.cell(2, 0).paragraphs[0].add_run("Rilevatore:").bold = True
-    dati_table.cell(2, 1).paragraphs[0].add_run("Studio Tecnico Serra (Rilevamento da campo)")
+    dati_table.cell(2, 0).paragraphs[0].add_run("Tecnico Rilevatore:").bold = True
+    dati_table.cell(2, 1).paragraphs[0].add_run(str(nome_tecnico))
 
     doc.add_paragraph()
 
@@ -127,9 +129,13 @@ def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -
     doc.add_paragraph()
     p_foot = doc.add_paragraph()
     p_foot.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run_firm = p_foot.add_run(f"Studio Serra — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    run_firm = p_foot.add_run(
+        f"Il Tecnico Rilevatore\n"
+        f"{nome_tecnico}\n"
+        f"Studio Serra — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
     run_firm.italic = True
-    run_firm.font.size = Pt(9)
+    run_firm.font.size = Pt(9.5)
 
     # Salvataggio
     cartella_dest = (
