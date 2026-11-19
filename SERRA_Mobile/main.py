@@ -28,11 +28,11 @@ stato_utenti = {}
 
 TASTIERA_PRINCIPALE = {
     "keyboard": [
-        [{"text": "🤖 Menù S.E.R.R.A."}],
+        [{"text": "🤖 Menù S.E.R.R.A."}, {"text": "🏢 CRM"}],
         [{"text": "📋 1. Sopralluogo"}, {"text": "🛠️ 2. Intervento"}],
-        [{"text": "🔎 3. Ricerca"}, {"text": "👩💼 4. Segreteria"}],
+        [{"text": "🔎 3. Ricerca"}, {"text": "👩‍💼 4. Segreteria"}],
         [{"text": "📌 5. Promemoria"}, {"text": "📅 6. Calendario"}],
-        [{"text": "❌ Annulla"}]
+        [{"text": "🔥 Scadenze & CPI"}, {"text": "❌ Annulla"}]
     ],
     "resize_keyboard": True
 }
