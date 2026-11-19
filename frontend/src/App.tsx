@@ -2334,23 +2334,6 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             </button>
 
             <button
-              onClick={() => setActiveTab('sopralluoghi')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'sopralluoghi'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <FileText className="w-4 h-4" />
-                File & Sopralluoghi
-              </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                PDF/DOCX
-              </span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('impostazioni')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
                 activeTab === 'impostazioni'
@@ -5384,19 +5367,6 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               {stats.assembleeAttiveCount}
             </span>
           )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('sopralluoghi')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition ${
-            activeTab === 'sopralluoghi'
-              ? 'bg-amber-500 text-slate-950'
-              : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <FileText className="w-4 h-4 mb-0.5" />
-          <span>Report</span>
         </button>
 
         <button
