@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getStoredToken } from '../auth';
 import {
   FileText,
   Download,
@@ -66,7 +67,12 @@ export const ReportSopralluoghiView: React.FC<ReportSopralluoghiViewProps> = ({ 
     try {
       // Normalizza apiBase
       const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
-      const res = await fetch(`${base}/serra-mobile/reports`, { credentials: 'omit' });
+      const token = getStoredToken();
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${base}/serra-mobile/reports`, { 
+        credentials: 'include',
+        headers
+      });
       if (!res.ok) {
         throw new Error(`Errore server HTTP ${res.status}`);
       }
@@ -142,9 +148,13 @@ export const ReportSopralluoghiView: React.FC<ReportSopralluoghiViewProps> = ({ 
 
   const handleOpenPdf = (report: ReportItem) => {
     const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
-    const url = report.pdf_url
+    let url = report.pdf_url
       ? `${base}${report.pdf_url.startsWith('/api') ? report.pdf_url.replace('/api', '') : report.pdf_url}`
       : `${base}/serra-mobile/reports/${report.tipo}/${report.base_name}.pdf`;
+    const token = getStoredToken();
+    if (token) {
+      url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(token)}`;
+    }
     setPreviewTitle(`${report.condominio} — ${report.tipo.toUpperCase()}`);
     setPreviewPdfUrl(url);
   };
@@ -354,12 +364,14 @@ export const ReportSopralluoghiView: React.FC<ReportSopralluoghiViewProps> = ({ 
           ) : (
             filteredReports.map((report) => {
               const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
-              const docxHref = report.docx_url
+              const token = getStoredToken();
+              const authQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+              const docxHref = (report.docx_url
                 ? `${base}${report.docx_url.startsWith('/api') ? report.docx_url.replace('/api', '') : report.docx_url}`
-                : `${base}/serra-mobile/reports/${report.tipo}/${report.base_name}.docx`;
-              const pdfHref = report.pdf_url
+                : `${base}/serra-mobile/reports/${report.tipo}/${report.base_name}.docx`) + authQuery;
+              const pdfHref = (report.pdf_url
                 ? `${base}${report.pdf_url.startsWith('/api') ? report.pdf_url.replace('/api', '') : report.pdf_url}`
-                : `${base}/serra-mobile/reports/${report.tipo}/${report.base_name}.pdf`;
+                : `${base}/serra-mobile/reports/${report.tipo}/${report.base_name}.pdf`) + authQuery;
 
               return (
                 <div
