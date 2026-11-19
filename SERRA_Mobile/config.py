@@ -38,8 +38,17 @@ class _AuthorizedUsers(list):
 _raw_ids = [x.strip() for x in os.environ.get("ID_AUTORIZZATI", "").split(",") if x.strip()]
 ID_AUTORIZZATI = _AuthorizedUsers(_raw_ids)
 
-# Google Gemini API Key
-CHIAVE_GEMINI = os.environ.get("GEMINI_API_KEY", "AIzaSyDa-ssUkNY0Go0QjJrZaVzJNE4uDXrkfRY")
+# Google Gemini API Keys (con rotazione automatica e fallback)
+_DEFAULT_GEMINI_KEYS = [
+    "AIzaSyAE8RUpteaZ0qbiw3p2UxEaZXOYQ2mcxuA",
+    "AIzaSyBJHNBeg7o_gUalsUKRNhmsGZFVEhPP4Lg"
+]
+_env_gemini = os.environ.get("GEMINI_API_KEY", "").strip()
+if _env_gemini and _env_gemini not in _DEFAULT_GEMINI_KEYS:
+    GEMINI_API_KEYS = [_env_gemini] + _DEFAULT_GEMINI_KEYS
+else:
+    GEMINI_API_KEYS = _DEFAULT_GEMINI_KEYS
+CHIAVE_GEMINI = GEMINI_API_KEYS[0]
 
 # Configurazione SMTP Studio Serra (per invio promemoria allo staff)
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")

@@ -26,9 +26,7 @@ except Exception:
 
 try:
     from google import genai
-    USA_GEMINI = hasattr(config, 'CHIAVE_GEMINI') and bool(config.CHIAVE_GEMINI)
-    if USA_GEMINI:
-        client_gemini = genai.Client(api_key=config.CHIAVE_GEMINI)
+    USA_GEMINI = hasattr(config, 'GEMINI_API_KEYS') and bool(config.GEMINI_API_KEYS)
 except Exception:
     USA_GEMINI = False
 
@@ -37,14 +35,19 @@ BASE_ARCHIVIO = os.path.join(config.CARTELLA_IA, "2_Gia_Letti_dall_IA")
 
 def chiama_ia_testuale(prompt_ia):
     if USA_GEMINI:
-        try:
-            risposta = client_gemini.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt_ia
-            )
-            return risposta.text.strip()
-        except Exception as e:
-            print(f"⚠️ Errore Gemini: {e}. Fallback su Ollama...")
+        keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
+        for k in keys:
+            try:
+                c = genai.Client(api_key=k)
+                risposta = c.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt_ia
+                )
+                if risposta and risposta.text:
+                    return risposta.text.strip()
+            except Exception as e:
+                print(f"⚠️ Errore Gemini key (...{k[-6:]}): {e}. Tentativo successiva...")
+                continue
             
     URL_OLLAMA = "http://127.0.0.1:11434/api/generate"
     dati = {"model": "llama3.2:latest", "prompt": prompt_ia, "stream": False}
@@ -142,17 +145,24 @@ anagrafica: {"azione": "anagrafica", "testo": "..."}"""
     if not USA_GEMINI:
         return '{"azione": "errore", "testo": "⚠️ Chiave API Gemini non configurata."}'
 
-    try:
-        contenuti = [prompt_agente, f"Richiesta: {messaggio_utente}"]
-        if percorso_foto and os.path.exists(percorso_foto):
-            contenuti.append(Image.open(percorso_foto))
-        risposta = client_gemini.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=contenuti
-        )
-        return risposta.text.replace("```json", "").replace("```", "").strip()
-    except Exception as e:
-        return f'{{"azione": "errore", "testo": "Errore Agente: {e}"}}'
+    keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
+    ultimo_errore = ""
+    for k in keys:
+        try:
+            c = genai.Client(api_key=k)
+            contenuti = [prompt_agente, f"Richiesta: {messaggio_utente}"]
+            if percorso_foto and os.path.exists(percorso_foto):
+                contenuti.append(Image.open(percorso_foto))
+            risposta = c.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contenuti
+            )
+            if risposta and risposta.text:
+                return risposta.text.replace("```json", "").replace("```", "").strip()
+        except Exception as e:
+            ultimo_errore = str(e)
+            continue
+    return f'{{"azione": "errore", "testo": "Errore Agente: {ultimo_errore}"}}'
 
 def esegui_master_agent(messaggio_utente):
     from datetime import datetime
@@ -168,11 +178,19 @@ RISPONDI SOLO CON JSON VALIDO. Esempio: {{"azione": "calendario", "parametri": {
     
     if not USA_GEMINI:
         return '{"azione": "chat", "parametri": {"risposta": "Attiva Gemini per usare il Master Agent."}}'
-    try:
-        risposta = client_gemini.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
-        )
-        return risposta.text.replace("```json", "").replace("```", "").strip()
-    except Exception as e:
-        return f'{{"azione": "chat", "parametri": {{"risposta": "Errore Agente: {e}"}}}}'
+
+    keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
+    ultimo_errore = ""
+    for k in keys:
+        try:
+            c = genai.Client(api_key=k)
+            risposta = c.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
+            )
+            if risposta and risposta.text:
+                return risposta.text.replace("```json", "").replace("```", "").strip()
+        except Exception as e:
+            ultimo_errore = str(e)
+            continue
+    return f'{{"azione": "chat", "parametri": {{"risposta": "Errore Agente: {ultimo_errore}"}}}}'
