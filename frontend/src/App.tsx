@@ -80,6 +80,10 @@ const IS_EMBED_MODE =
   typeof window !== 'undefined' &&
   (new URLSearchParams(window.location.search).get('embed') === '1' ||
     window.location.pathname.startsWith('/assistente'));
+const HIDE_SIDEBAR =
+  typeof window !== 'undefined' &&
+  (new URLSearchParams(window.location.search).get('hide_sidebar') === '1' ||
+    new URLSearchParams(window.location.search).get('single_tab') === '1');
 const DATA_SYNC_VERSION = '2026-10-18-v5';
 
 type TabType = 'dashboard' | 'condomini' | 'rendiconto' | 'assemblee' | 'sopralluoghi' | 'impostazioni';
@@ -115,7 +119,19 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       return false;
     }
   });
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (typeof window !== 'undefined') {
+      const p = (new URLSearchParams(window.location.search).get('tab') || '').toLowerCase();
+      if (p === 'sopralluoghi' || p === 'file' || p === 'reports' || window.location.hash.toLowerCase().includes('sopralluog')) {
+        return 'sopralluoghi';
+      }
+      if (p === 'assemblee') return 'assemblee';
+      if (p === 'rendiconto') return 'rendiconto';
+      if (p === 'condomini') return 'condomini';
+      if (p === 'impostazioni') return 'impostazioni';
+    }
+    return 'dashboard';
+  });
   const [selectedCondoForRendiconto, setSelectedCondoForRendiconto] = useState<number | null>(null);
   const [selectedCondoForAssemblee, setSelectedCondoForAssemblee] = useState<number | null>(null);
   const [initialAssembleeFilter, setInitialAssembleeFilter] = useState<
@@ -2221,7 +2237,8 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
-      {/* SIDEBAR DEDICATA AL RENDICONTO (nascosta su smartphone, sostituita dalla barra inferiore mobile) */}
+      {/* SIDEBAR DEDICATA AL RENDICONTO (nascosta su smartphone o se richiesta vista singola/senza sidebar) */}
+      {!HIDE_SIDEBAR && (
       <aside className="hidden md:flex w-72 bg-slate-950 text-white flex-col justify-between shrink-0 shadow-2xl z-20">
         <div>
           {/* Logo & Titolo */}
@@ -2528,6 +2545,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
       </aside>
+      )}
 
       {/* AREA PRINCIPALE */}
       <div className="flex-1 flex flex-col min-w-0">
