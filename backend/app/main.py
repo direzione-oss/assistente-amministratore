@@ -2,6 +2,8 @@ import sys
 import json
 import os
 import ssl
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request
