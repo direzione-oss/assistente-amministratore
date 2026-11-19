@@ -51,6 +51,32 @@ def scarica_foto_telegram(file_id, cartella_destinazione):
         print(f"⚠️ Errore download file Telegram: {e}")
         return None
 
+def invia_documento_telegram(chat_id, percorso_file, didascalia=None):
+    """Invia un file (PDF o DOCX) su Telegram tramite sendDocument multipart/form-data."""
+    if not percorso_file or not os.path.exists(percorso_file):
+        print(f"⚠️ invia_documento_telegram: file non trovato {percorso_file}")
+        return False
+    try:
+        import httpx
+        url = f"https://api.telegram.org/bot{config.TOKEN_TELEGRAM}/sendDocument"
+        filename = os.path.basename(percorso_file)
+        mime = "application/pdf" if filename.lower().endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        data = {"chat_id": str(chat_id)}
+        if didascalia:
+            data["caption"] = didascalia
+        with open(percorso_file, "rb") as f:
+            files = {"document": (filename, f, mime)}
+            with httpx.Client(verify=False, timeout=60.0) as client:
+                res = client.post(url, data=data, files=files)
+                if res.status_code == 200:
+                    print(f"✅ [TELEGRAM] Documento inviato con successo a {chat_id}: {filename}")
+                    return True
+                else:
+                    print(f"⚠️ [TELEGRAM] Errore invio documento: {res.status_code} - {res.text}")
+    except Exception as e_httpx:
+        print(f"⚠️ Errore invio documento Telegram: {e_httpx}")
+    return False
+
 def imposta_comandi_bot():
     url = f"https://api.telegram.org/bot{config.TOKEN_TELEGRAM}/setMyCommands"
     comandi = [

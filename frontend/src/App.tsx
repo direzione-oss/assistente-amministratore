@@ -61,6 +61,7 @@ import {
   formatDataAssembleaIt,
 } from './components/GestioneAssembleeView';
 import { ImpostazioniView } from './components/ImpostazioniView';
+import { ReportSopralluoghiView } from './components/ReportSopralluoghiView';
 import { MobileConnectModal } from './components/MobileConnectModal';
 import {
   calcolaMetrichePassiRendiconto,
@@ -81,7 +82,7 @@ const IS_EMBED_MODE =
     window.location.pathname.startsWith('/assistente'));
 const DATA_SYNC_VERSION = '2026-10-18-v5';
 
-type TabType = 'dashboard' | 'condomini' | 'rendiconto' | 'assemblee' | 'impostazioni';
+type TabType = 'dashboard' | 'condomini' | 'rendiconto' | 'assemblee' | 'sopralluoghi' | 'impostazioni';
 
 interface DocumentoNecessario {
   id: string;
@@ -2312,6 +2313,23 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 {stats.assembleeAttiveCount > 0
                   ? `${stats.assembleeAttiveCount} Attive`
                   : '5 Passi'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('sopralluoghi')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+                activeTab === 'sopralluoghi'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <FileText className="w-4 h-4" />
+                File & Sopralluoghi
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                PDF/DOCX
               </span>
             </button>
 
@@ -4938,6 +4956,14 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             />
           )}
 
+          {/* TAB: ARCHIVIO FILE & REPORT SOPRALLUOGHI */}
+          {activeTab === 'sopralluoghi' && (
+            <ReportSopralluoghiView
+              apiBase={`${API_BASE}/api`}
+              onNotify={notify}
+            />
+          )}
+
           {/* TAB 5: IMPOSTAZIONI & PERSONALIZZAZIONE PASSAGGI RENDICONTO */}
           {activeTab === 'impostazioni' && (
             <ImpostazioniView
@@ -5340,6 +5366,19 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               {stats.assembleeAttiveCount}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('sopralluoghi')}
+          className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition ${
+            activeTab === 'sopralluoghi'
+              ? 'bg-amber-500 text-slate-950'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <FileText className="w-4 h-4 mb-0.5" />
+          <span>Report</span>
         </button>
 
         <button

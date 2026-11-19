@@ -14,7 +14,7 @@ if BASE_DIR not in sys.path:
 
 import docx
 import config
-from bot.telegram_api import invia_messaggio, scarica_foto_telegram, imposta_comandi_bot
+from bot.telegram_api import invia_messaggio, scarica_foto_telegram, imposta_comandi_bot, invia_documento_telegram
 import servizi.dettofatto as df
 from servizi.intelligenza import (
     genera_testo_ia, ricerca_mirata_ia, trascrivi_audio_con_whisper,
@@ -128,15 +128,20 @@ def avvia_bot():
                             testo_completo += f" {f['caption']}"
                             
                     t_ia = genera_testo_ia(cond, testo_completo, data, tipo=tipo)
-                    p_doc = crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
+                    p_doc, p_pdf = crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
                     
                     if p_doc:
-                        invia_messaggio(chat_id, f"✅ **REPORT {tipo.upper()} SALVATO!**\n\n_Sintesi generata:_\n{t_ia}")
+                        invia_messaggio(chat_id, f"✅ **REPORT {tipo.upper()} SALVATO NEL CRM!**\n\n_Sintesi generata:_\n{t_ia}")
+                    if p_pdf and os.path.exists(p_pdf):
+                        invia_documento_telegram(chat_id, p_pdf, f"📄 Verbale {tipo.capitalize()} PDF - {cond}")
+                    elif p_doc and os.path.exists(p_doc):
+                        invia_documento_telegram(chat_id, p_doc, f"📄 Verbale {tipo.capitalize()} Word - {cond}")
+                        
                     if tipo == "intervento":
                         df.apri_ticket_dettofatto(cond, t_ia, p_doc, data)
                         
                     stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
-                    invia_messaggio(chat_id, "🤖 Operazione completata.", TASTIERA_PRINCIPALE)
+                    invia_messaggio(chat_id, "🤖 Operazione completata. I file DOCX e PDF sono consultabili anche nel CRM.", TASTIERA_PRINCIPALE)
                     continue
 
                 # ==========================================

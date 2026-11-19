@@ -2248,24 +2248,64 @@ def get_serra_mobile_status():
 
 @app.get("/api/serra-mobile/reports")
 def list_serra_mobile_reports():
-    """Elenca tutti i file di report .docx generati dai sopralluoghi e interventi."""
+    """Elenca tutti i file di report (.docx e .pdf) generati dai sopralluoghi, interventi e solleciti."""
     try:
         import config as serra_cfg
-        reports = []
-        for tipo, cartella in [("sopralluogo", serra_cfg.CARTELLA_SOPRALLUOGHI), ("intervento", serra_cfg.CARTELLA_INTERVENTI)]:
+        cartelle = [
+            ("sopralluogo", serra_cfg.CARTELLA_SOPRALLUOGHI),
+            ("intervento", serra_cfg.CARTELLA_INTERVENTI),
+            ("sollecito", getattr(serra_cfg, "CARTELLA_SOLLECITI", os.path.join(serra_cfg.CARTELLA_IA, "Solleciti")))
+        ]
+        
+        items_map = {}
+        for tipo, cartella in cartelle:
             if os.path.isdir(cartella):
                 for fn in os.listdir(cartella):
-                    if fn.endswith(".docx"):
+                    if fn.endswith(".docx") or fn.endswith(".pdf"):
+                        base, ext = os.path.splitext(fn)
                         fp = os.path.join(cartella, fn)
                         stat = os.stat(fp)
-                        reports.append({
-                            "tipo": tipo,
-                            "filename": fn,
-                            "dimensione_bytes": stat.st_size,
-                            "data_modifica": datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
-                            "download_url": f"/api/serra-mobile/reports/{tipo}/{fn}"
-                        })
-        reports.sort(key=lambda x: x["data_modifica"], reverse=True)
+                        key = f"{tipo}:{base}"
+                        if key not in items_map:
+                            cond_name = base
+                            data_rilievo = ""
+                            if base.startswith("Report_"):
+                                parts = base.split("_")
+                                if len(parts) >= 4:
+                                    cond_name = " ".join(parts[2:-2]).replace("_", " ")
+                                    data_rilievo = f"{parts[-2]}/{parts[-3]}" if len(parts) >= 5 else ""
+                            elif base.startswith("Sollecito_"):
+                                cond_name = base.replace("Sollecito_", "").replace("_", " ")
+
+                            items_map[key] = {
+                                "id": key,
+                                "tipo": tipo,
+                                "base_name": base,
+                                "condominio": cond_name or base,
+                                "data_modifica_ts": stat.st_mtime,
+                                "data_modifica": datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                                "has_docx": False,
+                                "has_pdf": False,
+                                "docx_filename": None,
+                                "pdf_filename": None,
+                                "docx_url": None,
+                                "pdf_url": None,
+                                "docx_size": 0,
+                                "pdf_size": 0,
+                            }
+                        if ext == ".docx":
+                            items_map[key]["has_docx"] = True
+                            items_map[key]["docx_filename"] = fn
+                            items_map[key]["docx_url"] = f"/api/serra-mobile/reports/{tipo}/{fn}"
+                            items_map[key]["docx_size"] = stat.st_size
+                        elif ext == ".pdf":
+                            items_map[key]["has_pdf"] = True
+                            items_map[key]["pdf_filename"] = fn
+                            items_map[key]["pdf_url"] = f"/api/serra-mobile/reports/{tipo}/{fn}"
+                            items_map[key]["pdf_size"] = stat.st_size
+
+        reports = list(items_map.values())
+        reports.sort(key=lambda x: x["data_modifica_ts"], reverse=True)
         return {"reports": reports, "totale": len(reports)}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Errore lettura report: {exc}")
@@ -2273,18 +2313,46 @@ def list_serra_mobile_reports():
 
 @app.get("/api/serra-mobile/reports/{tipo}/{filename}")
 def download_serra_mobile_report(tipo: str, filename: str):
-    """Permette il download del report .docx generato da S.E.R.R.A. Mobile."""
+    """Permette il download o visualizzazione inline di report .docx e .pdf."""
     try:
         import config as serra_cfg
-        cartella = serra_cfg.CARTELLA_SOPRALLUOGHI if tipo == "sopralluogo" else serra_cfg.CARTELLA_INTERVENTI
+        cartelle = {
+            "sopralluogo": serra_cfg.CARTELLA_SOPRALLUOGHI,
+            "intervento": serra_cfg.CARTELLA_INTERVENTI,
+            "sollecito": getattr(serra_cfg, "CARTELLA_SOLLECITI", os.path.join(serra_cfg.CARTELLA_IA, "Solleciti")),
+        }
+        cartella = cartelle.get(tipo.lower(), os.path.join(serra_cfg.CARTELLA_IA, tipo))
         filepath = os.path.abspath(os.path.join(cartella, filename))
-        if not filepath.startswith(os.path.abspath(cartella)) or not os.path.exists(filepath):
-            raise HTTPException(status_code=404, detail="File di report non trovato")
-        return FileResponse(
-            path=filepath,
-            filename=filename,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        if not filepath.startswith(os.path.abspath(cartella)):
+            raise HTTPException(status_code=400, detail="Percorso non valido")
+
+        # Se è richiesto un PDF che non esiste ancora ma esiste il DOCX, convertilo on-demand
+        if filename.endswith(".pdf") and not os.path.exists(filepath):
+            docx_equiv = os.path.splitext(filepath)[0] + ".docx"
+            if os.path.exists(docx_equiv):
+                try:
+                    from servizi.documenti import converti_docx_in_pdf
+                    converti_docx_in_pdf(docx_equiv)
+                except Exception as e_conv:
+                    print(f"⚠️ Errore conversione automatica on-demand: {e_conv}")
+
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="File non trovato")
+
+        if filename.endswith(".pdf"):
+            return FileResponse(
+                path=filepath,
+                filename=filename,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename=\"{filename}\""}
+            )
+        else:
+            return FileResponse(
+                path=filepath,
+                filename=filename,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
+            )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -2340,7 +2408,7 @@ def chiudi_sopralluogo_endpoint(payload: ChiudiSopralluogoRequest):
                 testo_completo += f" {f['caption']}"
 
         t_ia = genera_testo_ia(payload.condominio, testo_completo, payload.data, tipo=payload.tipo)
-        p_doc = crea_word_e_pdf(payload.condominio, t_ia, foto_paths, payload.data, payload.appunti, tipo=payload.tipo)
+        p_doc, p_pdf = crea_word_e_pdf(payload.condominio, t_ia, foto_paths, payload.data, payload.appunti, tipo=payload.tipo)
 
         ticket_res = None
         if payload.tipo == "intervento":
@@ -2350,7 +2418,9 @@ def chiudi_sopralluogo_endpoint(payload: ChiudiSopralluogoRequest):
             "success": True,
             "sintesi_ia": t_ia,
             "report_path": p_doc,
+            "pdf_path": p_pdf,
             "filename": os.path.basename(p_doc) if p_doc else "",
+            "pdf_filename": os.path.basename(p_pdf) if p_pdf else "",
             "ticket": ticket_res,
         }
     except Exception as exc:
@@ -2540,13 +2610,18 @@ def process_serra_telegram_update(item: dict) -> bool:
                 if f.get("caption"):
                     testo_completo += f" {f['caption']}"
             t_ia = serra_main.genera_testo_ia(cond, testo_completo, data, tipo=tipo)
-            p_doc = serra_main.crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
+            p_doc, p_pdf = serra_main.crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
             if p_doc:
-                serra_main.invia_messaggio(chat_id, f"✅ **REPORT {tipo.upper()} SALVATO!**\n\n_Sintesi generata:_\n{t_ia}")
+                serra_main.invia_messaggio(chat_id, f"✅ **REPORT {tipo.upper()} SALVATO NEL CRM!**\n\n_Sintesi generata:_\n{t_ia}")
+            if p_pdf and os.path.exists(p_pdf):
+                serra_main.invia_documento_telegram(chat_id, p_pdf, f"📄 Verbale {tipo.capitalize()} PDF - {cond}")
+            elif p_doc and os.path.exists(p_doc):
+                serra_main.invia_documento_telegram(chat_id, p_doc, f"📄 Verbale {tipo.capitalize()} Word - {cond}")
+
             if tipo == "intervento":
                 df.apri_ticket_dettofatto(cond, t_ia, p_doc, data)
             serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
-            serra_main.invia_messaggio(chat_id, "🤖 Operazione completata.", serra_main.TASTIERA_PRINCIPALE)
+            serra_main.invia_messaggio(chat_id, "🤖 Operazione completata. I file DOCX e PDF sono salvati anche nella sezione File del CRM.", serra_main.TASTIERA_PRINCIPALE)
             return True
 
         # 5. Macchina a stati attiva per sessioni correnti

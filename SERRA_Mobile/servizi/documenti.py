@@ -1,6 +1,7 @@
 import os
 import re
 import smtplib
+import subprocess
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
@@ -20,14 +21,31 @@ except ImportError:
 def clean_filename(name: str) -> str:
     return re.sub(r'[\\/*?:"<>| ]', '_', name.strip())
 
-def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -> str:
+def converti_docx_in_pdf(docx_path: str) -> str:
+    """Converte un file .docx in .pdf usando LibreOffice headless."""
+    try:
+        if not docx_path or not os.path.exists(docx_path):
+            return ""
+        out_dir = os.path.dirname(docx_path)
+        cmd = ["soffice", "--headless", "--convert-to", "pdf:writer_pdf_Export", docx_path, "--outdir", out_dir]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        pdf_path = os.path.splitext(docx_path)[0] + ".pdf"
+        if os.path.exists(pdf_path):
+            print(f"✅ [PDF] Generato con successo: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"⚠️ Errore conversione PDF {docx_path}: {e}")
+    return ""
+
+def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -> tuple:
     """
-    Genera un report Word (.docx) impaginato professionalmente per Studio Serra.
-    Include sintesi tecnica IA, note di campo e rilievo fotografico con didascalie.
+    Genera un report Word (.docx) impaginato professionalmente per Studio Serra
+    e crea automaticamente la versione PDF (.pdf).
+    Ritorna una tupla (filepath_docx, filepath_pdf).
     """
     if not docx:
         print("⚠️ python-docx non installato.")
-        return ""
+        return "", ""
 
     doc = docx.Document()
 
@@ -126,8 +144,9 @@ def crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo="sopralluogo") -
     filename = f"Report_{tipo.capitalize()}_{clean_cond}_{clean_dt}_{int(datetime.now().timestamp())}.docx"
     filepath = os.path.join(cartella_dest, filename)
     doc.save(filepath)
-    print(f"✅ [REPORT] Salvato: {filepath}")
-    return filepath
+    print(f"✅ [REPORT DOCX] Salvato: {filepath}")
+    pdf_path = converti_docx_in_pdf(filepath)
+    return filepath, pdf_path
 
 def invia_email_promemoria(testo, oggetto="📌 Promemoria Staff da S.E.R.R.A.") -> bool:
     """
