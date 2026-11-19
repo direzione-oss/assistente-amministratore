@@ -17,10 +17,10 @@ CARTELLA_SOLLECITI = os.environ.get("CARTELLA_SOLLECITI", os.path.join(CARTELLA_
 for _d in [CARTELLA_IA, CARTELLA_SOPRALLUOGHI, CARTELLA_INTERVENTI, CARTELLA_SOLLECITI]:
     os.makedirs(_d, exist_ok=True)
 
-# Token Bot Telegram Studio Serra
+# Token Bot Telegram Studio Serra (@AssistenteStudioSerra_bot)
 TOKEN_TELEGRAM = os.environ.get(
     "TOKEN_TELEGRAM",
-    os.environ.get("TELEGRAM_BOT_TOKEN", "8370086840:AAGEwxs-X27eEUToXeRJp12JLtDbUdz-4FQ")
+    os.environ.get("TELEGRAM_BOT_TOKEN", "8697082786:AAEyeZqWY5OLTgOacCf5mSr2vvB_aTDnIAI")
 )
 
 # Gestione Utenti Autorizzati:

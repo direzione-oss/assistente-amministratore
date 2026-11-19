@@ -2303,6 +2303,152 @@ def call_serra_master_agent(payload: MasterAgentRequest):
         raise HTTPException(status_code=500, detail=f"Errore Master Agent: {exc}")
 
 
+class ChiudiSopralluogoRequest(BaseModel):
+    condominio: str
+    data: str
+    appunti: str = ""
+    foto: List[Dict[str, Any]] = []
+    tipo: str = "sopralluogo"
+
+
+@app.post("/api/serra-mobile/sopralluogo/chiudi")
+def chiudi_sopralluogo_endpoint(payload: ChiudiSopralluogoRequest):
+    """Genera il report Word (.docx) con foto e didascalie, apre ticket su DettoFatto se richiesto."""
+    try:
+        import config as serra_cfg
+        from bot.telegram_api import scarica_foto_telegram
+        from servizi.intelligenza import genera_testo_ia
+        from servizi.documenti import crea_word_e_pdf
+        import servizi.dettofatto as df
+
+        cartella_temp = os.path.join(serra_cfg.CARTELLA_IA, "foto_telegram_temp")
+        os.makedirs(cartella_temp, exist_ok=True)
+
+        foto_paths = []
+        for f in payload.foto:
+            file_id = f.get("file_id")
+            caption = f.get("caption", "")
+            path = f.get("path")
+            if not path and file_id:
+                path = scarica_foto_telegram(file_id, cartella_temp)
+            if path and os.path.exists(path):
+                foto_paths.append({"path": path, "caption": caption})
+
+        testo_completo = payload.appunti
+        for f in foto_paths:
+            if f.get("caption"):
+                testo_completo += f" {f['caption']}"
+
+        t_ia = genera_testo_ia(payload.condominio, testo_completo, payload.data, tipo=payload.tipo)
+        p_doc = crea_word_e_pdf(payload.condominio, t_ia, foto_paths, payload.data, payload.appunti, tipo=payload.tipo)
+
+        ticket_res = None
+        if payload.tipo == "intervento":
+            ticket_res = df.apri_ticket_dettofatto(payload.condominio, t_ia, p_doc, payload.data)
+
+        return {
+            "success": True,
+            "sintesi_ia": t_ia,
+            "report_path": p_doc,
+            "filename": os.path.basename(p_doc) if p_doc else "",
+            "ticket": ticket_res,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class PromemoriaApiRequest(BaseModel):
+    testo: str = ""
+    oggetto: str = "📌 S.E.R.R.A. - PROMEMORIA"
+    audio_file_id: Optional[str] = None
+
+
+@app.post("/api/serra-mobile/promemoria")
+def invia_promemoria_endpoint(payload: PromemoriaApiRequest):
+    """Invia promemoria via email allo staff (con trascrizione audio opzionale)."""
+    try:
+        import config as serra_cfg
+        from bot.telegram_api import scarica_foto_telegram
+        from servizi.intelligenza import trascrivi_audio_con_whisper
+        from servizi.documenti import invia_email_promemoria
+
+        testo_finale = payload.testo
+        if payload.audio_file_id:
+            cartella_temp = os.path.join(serra_cfg.CARTELLA_IA, "foto_telegram_temp")
+            os.makedirs(cartella_temp, exist_ok=True)
+            path_audio = scarica_foto_telegram(payload.audio_file_id, cartella_temp)
+            if path_audio:
+                trascritto = trascrivi_audio_con_whisper(path_audio)
+                if trascritto and "⚠️ Errore" not in trascritto:
+                    testo_finale = trascritto
+
+        ok = invia_email_promemoria(testo_finale, payload.oggetto)
+        return {"success": ok, "testo": testo_finale, "oggetto": payload.oggetto}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class CalendarioApiRequest(BaseModel):
+    titolo: str
+    data_ora: str
+    durata_minuti: int = 60
+
+
+@app.post("/api/serra-mobile/calendario")
+def prenota_calendario_endpoint(payload: CalendarioApiRequest):
+    """Verifica conflitti e prenota appuntamento su Google Calendar e CRM."""
+    try:
+        from servizi.calendario import verifica_e_prenota_appuntamento
+        success, messaggio = verifica_e_prenota_appuntamento(payload.titolo, payload.data_ora, payload.durata_minuti)
+        return {"success": success, "messaggio": messaggio}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class SegreteriaApiRequest(BaseModel):
+    richiesta: str
+    photo_file_id: Optional[str] = None
+
+
+@app.post("/api/serra-mobile/segreteria")
+def segreteria_endpoint(payload: SegreteriaApiRequest):
+    """Esegue agente segretario (bozza email, sollecito docx, OCR anagrafica)."""
+    try:
+        import config as serra_cfg
+        from bot.telegram_api import scarica_foto_telegram
+        from servizi.intelligenza import esegui_agente_segretario
+
+        percorso_foto = None
+        if payload.photo_file_id:
+            cartella_temp = os.path.join(serra_cfg.CARTELLA_IA, "foto_telegram_temp")
+            os.makedirs(cartella_temp, exist_ok=True)
+            percorso_foto = scarica_foto_telegram(payload.photo_file_id, cartella_temp)
+
+        res_str = esegui_agente_segretario(payload.richiesta, percorso_foto)
+        try:
+            return json.loads(res_str)
+        except Exception:
+            return {"azione": "email", "testo": res_str}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class RicercaApiRequest(BaseModel):
+    condominio: str
+    domanda: str
+
+
+@app.post("/api/serra-mobile/ricerca")
+def ricerca_archivio_endpoint(payload: RicercaApiRequest):
+    """Ricerca mirata nei fascicoli condominiali PDF tramite IA."""
+    try:
+        from servizi.intelligenza import ricerca_mirata_ia
+        risposta = ricerca_mirata_ia(payload.condominio, payload.domanda)
+        return {"success": True, "risposta": risposta}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 def _run_telegram_bot_loop():
     global _serra_bot_active
     try:
@@ -2310,6 +2456,20 @@ def _run_telegram_bot_loop():
         from bot.telegram_api import imposta_comandi_bot
         import servizi.dettofatto as df
         import main as serra_main
+
+        # Controlla se è attivo un Webhook Telegram
+        contesto_ssl = ssl._create_unverified_context()
+        url_wh_info = f"https://api.telegram.org/bot{serra_cfg.TOKEN_TELEGRAM}/getWebhookInfo"
+        try:
+            req_wh = urllib.request.Request(url_wh_info)
+            resp_wh = urllib.request.urlopen(req_wh, context=contesto_ssl, timeout=8)
+            wh_info = json.loads(resp_wh.read().decode('utf-8')).get("result", {})
+            if wh_info.get("url"):
+                print(f"ℹ️ [S.E.R.R.A. Mobile] Webhook attivo su {wh_info['url']} per @AssistenteStudioSerra_bot. Le richieste vengono gestite via webhook bridge.")
+                _serra_bot_active = True
+                return
+        except Exception as e_wh:
+            print(f"⚠️ Verifica webhook Telegram: {e_wh}")
 
         imposta_comandi_bot()
         df.sincronizza_condomini()
