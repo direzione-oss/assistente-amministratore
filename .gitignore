@@ -15,3 +15,8 @@ frontend/dist/
 .env.*
 .DS_Store
 Thumbs.db
+*.docx
+foto_telegram_temp/
+credentials.json
+token_calendar.json
+token.json

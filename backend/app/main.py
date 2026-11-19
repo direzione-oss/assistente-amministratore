@@ -1,10 +1,11 @@
+import sys
 import json
 import os
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session, joinedload
@@ -239,6 +240,13 @@ def on_startup():
         seed_initial_data(db)
     finally:
         db.close()
+
+    if os.environ.get("AUTOSTART_SERRA_BOT", "true").lower() in ("true", "1", "yes"):
+        try:
+            start_serra_mobile_bot()
+            print("🚀 [STARTUP] Daemon Bot S.E.R.R.A. Mobile avviato automaticamente.")
+        except Exception as e_bot:
+            print(f"⚠️ [STARTUP] Impossibile avviare automaticamente il bot Telegram: {e_bot}")
 
 
 def serialize_comunicazione(c: Comunicazione) -> ComunicazioneOut:
@@ -2176,6 +2184,379 @@ def get_network_info(port: int = 8502, custom_url: Optional[str] = None):
         "mobile_url": target_url,
         "qr_matrix": qr_matrix,
     }
+
+
+# ---------------------------------------------------------
+# 10. INTEGRAZIONE S.E.R.R.A. MOBILE (OPERATIVITÀ DA CAMPO & BOT TELEGRAM)
+# ---------------------------------------------------------
+import threading
+
+_candidates_serra_dir = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "SERRA_Mobile")),
+    "/app/SERRA_Mobile",
+]
+_serra_mobile_dir = next((d for d in _candidates_serra_dir if os.path.isdir(d)), _candidates_serra_dir[0])
+if _serra_mobile_dir not in sys.path and os.path.isdir(_serra_mobile_dir):
+    sys.path.insert(0, _serra_mobile_dir)
+
+_serra_bot_thread: Optional[threading.Thread] = None
+_serra_bot_stop_event = threading.Event()
+_serra_bot_active = False
+
+
+class MasterAgentRequest(BaseModel):
+    messaggio: str
+
+
+@app.get("/api/serra-mobile/status")
+def get_serra_mobile_status():
+    """Restituisce lo stato dell'integrazione di S.E.R.R.A. Mobile."""
+    try:
+        import config as serra_cfg
+        sopralluoghi_count = 0
+        interventi_count = 0
+        if os.path.isdir(serra_cfg.CARTELLA_SOPRALLUOGHI):
+            sopralluoghi_count = len([f for f in os.listdir(serra_cfg.CARTELLA_SOPRALLUOGHI) if f.endswith(".docx")])
+        if os.path.isdir(serra_cfg.CARTELLA_INTERVENTI):
+            interventi_count = len([f for f in os.listdir(serra_cfg.CARTELLA_INTERVENTI) if f.endswith(".docx")])
+
+        token_cal_exists = os.path.exists(serra_cfg.GOOGLE_TOKEN_PATH)
+        gemini_ready = bool(serra_cfg.CHIAVE_GEMINI)
+        tg_token_masked = serra_cfg.TOKEN_TELEGRAM[:10] + "..." if serra_cfg.TOKEN_TELEGRAM else ""
+
+        return {
+            "attivo": True,
+            "bot_in_esecuzione": _serra_bot_active,
+            "telegram_token_presente": bool(serra_cfg.TOKEN_TELEGRAM),
+            "telegram_token_anteprima": tg_token_masked,
+            "gemini_abilitato": gemini_ready,
+            "google_calendar_autenticato": token_cal_exists,
+            "totale_report_sopralluogo": sopralluoghi_count,
+            "totale_report_intervento": interventi_count,
+            "cartella_ia": serra_cfg.CARTELLA_IA,
+        }
+    except Exception as exc:
+        return {
+            "attivo": False,
+            "errore": str(exc),
+            "bot_in_esecuzione": False
+        }
+
+
+@app.get("/api/serra-mobile/reports")
+def list_serra_mobile_reports():
+    """Elenca tutti i file di report .docx generati dai sopralluoghi e interventi."""
+    try:
+        import config as serra_cfg
+        reports = []
+        for tipo, cartella in [("sopralluogo", serra_cfg.CARTELLA_SOPRALLUOGHI), ("intervento", serra_cfg.CARTELLA_INTERVENTI)]:
+            if os.path.isdir(cartella):
+                for fn in os.listdir(cartella):
+                    if fn.endswith(".docx"):
+                        fp = os.path.join(cartella, fn)
+                        stat = os.stat(fp)
+                        reports.append({
+                            "tipo": tipo,
+                            "filename": fn,
+                            "dimensione_bytes": stat.st_size,
+                            "data_modifica": datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                            "download_url": f"/api/serra-mobile/reports/{tipo}/{fn}"
+                        })
+        reports.sort(key=lambda x: x["data_modifica"], reverse=True)
+        return {"reports": reports, "totale": len(reports)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Errore lettura report: {exc}")
+
+
+@app.get("/api/serra-mobile/reports/{tipo}/{filename}")
+def download_serra_mobile_report(tipo: str, filename: str):
+    """Permette il download del report .docx generato da S.E.R.R.A. Mobile."""
+    try:
+        import config as serra_cfg
+        cartella = serra_cfg.CARTELLA_SOPRALLUOGHI if tipo == "sopralluogo" else serra_cfg.CARTELLA_INTERVENTI
+        filepath = os.path.abspath(os.path.join(cartella, filename))
+        if not filepath.startswith(os.path.abspath(cartella)) or not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="File di report non trovato")
+        return FileResponse(
+            path=filepath,
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/serra-mobile/master-agent")
+def call_serra_master_agent(payload: MasterAgentRequest):
+    """Interroga il Master Agent di S.E.R.R.A. per routing di azioni rapide in mobilità."""
+    try:
+        from servizi.intelligenza import esegui_master_agent
+        risultato_raw = esegui_master_agent(payload.messaggio)
+        try:
+            return json.loads(risultato_raw)
+        except Exception:
+            return {"azione": "chat", "parametri": {"risposta": risultato_raw}}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Errore Master Agent: {exc}")
+
+
+def _run_telegram_bot_loop():
+    global _serra_bot_active
+    try:
+        import config as serra_cfg
+        from bot.telegram_api import imposta_comandi_bot
+        import servizi.dettofatto as df
+        import main as serra_main
+
+        imposta_comandi_bot()
+        df.sincronizza_condomini()
+        _serra_bot_active = True
+        print("🤖 [S.E.R.R.A. Mobile] Daemon Telegram Bot avviato con successo.")
+
+        offset = 0
+        contesto_ssl = ssl._create_unverified_context()
+        while not _serra_bot_stop_event.is_set():
+            try:
+                url_updates = f"https://api.telegram.org/bot{serra_cfg.TOKEN_TELEGRAM}/getUpdates?timeout=5&offset={offset}"
+                req = urllib.request.Request(url_updates)
+                resp = urllib.request.urlopen(req, context=contesto_ssl, timeout=8)
+                updates = json.loads(resp.read().decode('utf-8')).get("result", [])
+                
+                # Elabora ogni messaggio tramite il dispatcher di serra_main
+                for item in updates:
+                    offset = item["update_id"] + 1
+                    msg = item.get("message", {})
+                    chat_id = str(msg.get("chat", {}).get("id", ""))
+                    if not chat_id or chat_id not in serra_cfg.ID_AUTORIZZATI:
+                        continue
+                    # Processa con la logica completa del bot
+                    testo_msg = (msg.get("text", "") or msg.get("caption", "")).strip()
+                    if chat_id not in serra_main.stato_utenti:
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+                    
+                    if testo_msg in ["/start", "❌ Annulla", "/annulla", "🤖 Menù S.E.R.R.A."]:
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+                        serra_main.invia_messaggio(
+                            chat_id,
+                            "🤖 **MENU PRINCIPALE S.E.R.R.A.**\n_*Sistema Esecutivo di Ricerca a Risposta Autonoma*_\n\nScegli un'operazione dal cruscotto o scrivi direttamente cosa ti serve:",
+                            serra_main.TASTIERA_PRINCIPALE
+                        )
+                        continue
+
+                    # Chiudi e genera DOC
+                    if testo_msg == "✅ CHIUDI E GENERA DOC":
+                        cond = serra_main.stato_utenti[chat_id].get("condominio")
+                        data = serra_main.stato_utenti[chat_id].get("data")
+                        tipo = serra_main.stato_utenti[chat_id].get("tipo", "sopralluogo")
+                        serra_main.invia_messaggio(chat_id, "⏳ Generazione report tecnico in corso...", {"remove_keyboard": True})
+                        appunti = serra_main.stato_utenti[chat_id].get("appunti", "")
+                        foto_paths = serra_main.stato_utenti[chat_id].get("foto", [])
+                        testo_completo = appunti
+                        for f in foto_paths:
+                            if f["caption"]:
+                                testo_completo += f" {f['caption']}"
+                        t_ia = serra_main.genera_testo_ia(cond, testo_completo, data, tipo=tipo)
+                        p_doc = serra_main.crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
+                        if p_doc:
+                            serra_main.invia_messaggio(chat_id, f"✅ **REPORT {tipo.upper()} SALVATO!**\n\n_Sintesi generata:_\n{t_ia}")
+                        if tipo == "intervento":
+                            df.apri_ticket_dettofatto(cond, t_ia, p_doc, data)
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+                        serra_main.invia_messaggio(chat_id, "🤖 Operazione completata.", serra_main.TASTIERA_PRINCIPALE)
+                        continue
+
+                    # Menu comandi rapidi
+                    if testo_msg in ["📋 1. Sopralluogo", "🛠️ 2. Intervento", "🔎 3. Ricerca", "/sopralluogo", "/intervento", "/ricerca"]:
+                        tipo_scelto = (testo_msg.replace("/", "").strip().lower() if testo_msg.startswith("/") else testo_msg.split(". ")[1].lower())
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": tipo_scelto}
+                        nomi_condomini = [c.get("name", "")[:40].strip() for c in df.condomini_in_memoria]
+                        pulsanti = [[{"text": n}] for n in nomi_condomini[:80]]
+                        if tipo_scelto == "ricerca":
+                            pulsanti.insert(0, [{"text": "📁 CARTELLA GENERICA"}])
+                        pulsanti.insert(0, [{"text": "❌ Annulla"}])
+                        serra_main.invia_messaggio(chat_id, f"⚙️ *SEZIONE: {tipo_scelto.upper()}*\n\nSeleziona il Condominio:", {"keyboard": pulsanti, "resize_keyboard": True})
+                        continue
+
+                    if testo_msg in ["👩💼 4. Segreteria", "/segreteria"]:
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": "segreteria"}
+                        serra_main.invia_messaggio(chat_id, "👩💼 *AGENTE SEGRETERIA*\n\nScrivi la richiesta (mail o sollecito) oppure invia la **foto** di un modulo anagrafico:", {"keyboard": [[{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        continue
+
+                    if testo_msg in ["📌 5. Promemoria", "/promemoria"]:
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": "promemoria_oggetto"}
+                        serra_main.invia_messaggio(chat_id, "📌 *PROMEMORIA STAFF*\n\n**STEP 1:** Scrivi l'**Oggetto** dell'email:", {"keyboard": [[{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        continue
+
+                    if testo_msg in ["📅 6. Calendario", "/calendario"]:
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": "cal_titolo"}
+                        serra_main.invia_messaggio(chat_id, "📅 *GOOGLE CALENDAR*\n\n**STEP 1:** Titolo dell'appuntamento:", {"keyboard": [[{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        continue
+
+                    # Macchina a stati
+                    tipo_attuale = serra_main.stato_utenti[chat_id].get("tipo")
+                    cond_attuale = serra_main.stato_utenti[chat_id].get("condominio")
+                    CARTELLA_TEMP = os.path.join(_serra_mobile_dir, "foto_telegram_temp")
+                    os.makedirs(CARTELLA_TEMP, exist_ok=True)
+
+                    if tipo_attuale in ["sopralluogo", "intervento"]:
+                        data_attuale = serra_main.stato_utenti[chat_id].get("data")
+                        if cond_attuale is None:
+                            serra_main.stato_utenti[chat_id]["condominio"] = testo_msg
+                            serra_main.invia_messaggio(chat_id, f"✅ Condominio: *{testo_msg}*\nSeleziona o scrivi la data:", {"keyboard": [[{"text": "📅 Usa data di oggi"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        elif data_attuale is None:
+                            serra_main.stato_utenti[chat_id]["data"] = datetime.now().strftime("%d/%m/%Y") if testo_msg == "📅 Usa data di oggi" else testo_msg
+                            serra_main.invia_messaggio(chat_id, f"✅ Data: *{serra_main.stato_utenti[chat_id]['data']}*\n\nInvia ora **foto** (anche con didascalia) e **note testuali**. Quando hai finito premi il tasto qui sotto:", {"keyboard": [[{"text": "✅ CHIUDI E GENERA DOC"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        else:
+                            didascalia = testo_msg if testo_msg != "✅ CHIUDI E GENERA DOC" else ""
+                            if "photo" in msg:
+                                path = serra_main.scarica_foto_telegram(msg["photo"][-1]["file_id"], CARTELLA_TEMP)
+                                if path:
+                                    serra_main.stato_utenti[chat_id]["foto"].append({"path": path, "caption": didascalia})
+                                    serra_main.invia_messaggio(chat_id, f"📸 Foto acquisita ({len(serra_main.stato_utenti[chat_id]['foto'])} totali).")
+                            elif didascalia:
+                                serra_main.stato_utenti[chat_id]["appunti"] += f"\n- {didascalia}"
+                                serra_main.invia_messaggio(chat_id, "📝 Nota aggiunta al report.")
+
+                    elif tipo_attuale == "ricerca":
+                        if cond_attuale is None:
+                            serra_main.stato_utenti[chat_id]["condominio"] = testo_msg
+                            serra_main.invia_messaggio(chat_id, f"🎯 Archivio: *{testo_msg}*\nScrivi la tua domanda:", {"keyboard": [[{"text": "❌ Annulla"}]], "resize_keyboard": True})
+                        else:
+                            serra_main.invia_messaggio(chat_id, "🔎 Consultazione fascicoli in corso...", {"remove_keyboard": True})
+                            risposta = serra_main.ricerca_mirata_ia(cond_attuale, testo_msg)
+                            serra_main.invia_messaggio(chat_id, f"📚 **RISPOSTA:**\n\n{risposta}", serra_main.TASTIERA_PRINCIPALE)
+                            serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+
+                    elif tipo_attuale == "segreteria":
+                        serra_main.invia_messaggio(chat_id, "👩💼 Elaborazione richiesta...", {"remove_keyboard": True})
+                        percorso_foto = serra_main.scarica_foto_telegram(msg["photo"][-1]["file_id"], CARTELLA_TEMP) if "photo" in msg else None
+                        dati_agente_str = serra_main.esegui_agente_segretario(testo_msg, percorso_foto)
+                        try:
+                            dati_agente = json.loads(dati_agente_str)
+                            azione = dati_agente.get("azione")
+                            if azione == "email":
+                                serra_main.invia_messaggio(chat_id, f"📧 **BOZZA EMAIL**\n**Oggetto:** {dati_agente.get('oggetto')}\n\n{dati_agente.get('testo')}", serra_main.TASTIERA_PRINCIPALE)
+                            elif azione == "anagrafica":
+                                serra_main.invia_messaggio(chat_id, f"📇 **DATI ANAGRAFICI ESTRATTI**\n\n{dati_agente.get('testo')}", serra_main.TASTIERA_PRINCIPALE)
+                            elif azione == "sollecito":
+                                dest = dati_agente.get("destinatario", "Condomino")
+                                testo_soll = dati_agente.get("testo", "")
+                                doc = docx.Document()
+                                doc.add_heading("STUDIO SERRA - AMMINISTRAZIONE", level=1)
+                                doc.add_paragraph(f"Spett.le {dest},\nData: {datetime.now().strftime('%d/%m/%Y')}\n")
+                                doc.add_heading("OGGETTO: Sollecito Pagamento", level=2)
+                                doc.add_paragraph(testo_soll)
+                                cartella_soll = os.path.join(serra_cfg.CARTELLA_IA, "Solleciti")
+                                os.makedirs(cartella_soll, exist_ok=True)
+                                doc.save(os.path.join(cartella_soll, f"Sollecito_{dest.replace(' ', '_')}.docx"))
+                                serra_main.invia_messaggio(chat_id, f"⚖️ **SOLLECITO SALVATO IN ARCHIVIO!**\n\n_{testo_soll}_", serra_main.TASTIERA_PRINCIPALE)
+                        except Exception:
+                            serra_main.invia_messaggio(chat_id, "⚠️ Errore interpretazione Agente.", serra_main.TASTIERA_PRINCIPALE)
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+
+                    elif tipo_attuale == "promemoria_oggetto":
+                        serra_main.stato_utenti[chat_id]["appunti"] = testo_msg
+                        serra_main.stato_utenti[chat_id]["tipo"] = "promemoria_corpo"
+                        serra_main.invia_messaggio(chat_id, f"✅ **Oggetto:** {testo_msg}\n\n**STEP 2:** Scrivi il testo o **invia un messaggio vocale**:")
+
+                    elif tipo_attuale == "promemoria_corpo":
+                        serra_main.invia_messaggio(chat_id, "⏳ Invio promemoria allo staff...", {"remove_keyboard": True})
+                        oggetto_mail = serra_main.stato_utenti[chat_id].get("appunti", "📌 S.E.R.R.A. - PROMEMORIA")
+                        file_id_audio = msg["audio"]["file_id"] if "audio" in msg else (msg["voice"]["file_id"] if "voice" in msg else None)
+                        if file_id_audio:
+                            path_audio = serra_main.scarica_foto_telegram(file_id_audio, CARTELLA_TEMP)
+                            testo_finale_mail = serra_main.trascrivi_audio_con_whisper(path_audio) if path_audio else ""
+                        else:
+                            testo_finale_mail = testo_msg
+
+                        if testo_finale_mail.strip() and "⚠️ Errore" not in testo_finale_mail:
+                            if serra_main.invia_email_promemoria(testo_finale_mail, oggetto_mail):
+                                serra_main.invia_messaggio(chat_id, f"🚀 **EMAIL INVIATA!**\n**Oggetto:** {oggetto_mail}\n**Testo:** _{testo_finale_mail}_", serra_main.TASTIERA_PRINCIPALE)
+                            else:
+                                serra_main.invia_messaggio(chat_id, "⚠️ Errore invio SMTP.", serra_main.TASTIERA_PRINCIPALE)
+                        else:
+                            serra_main.invia_messaggio(chat_id, "⚠️ Impossibile estrarre un testo valido.", serra_main.TASTIERA_PRINCIPALE)
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+
+                    elif tipo_attuale == "cal_titolo":
+                        serra_main.stato_utenti[chat_id]["appunti"] = testo_msg
+                        serra_main.stato_utenti[chat_id]["tipo"] = "cal_data"
+                        serra_main.invia_messaggio(chat_id, f"✅ **Titolo:** {testo_msg}\n\n**STEP 2:** Inserisci data e ora (`GG/MM/AAAA HH:MM`):")
+
+                    elif tipo_attuale == "cal_data":
+                        try:
+                            datetime.strptime(testo_msg, "%d/%m/%Y %H:%M")
+                            serra_main.stato_utenti[chat_id]["data"] = testo_msg
+                            serra_main.stato_utenti[chat_id]["tipo"] = "cal_durata"
+                            tastiera_durata = {"keyboard": [[{"text": "30"}, {"text": "60"}], [{"text": "90"}, {"text": "120"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True}
+                            serra_main.invia_messaggio(chat_id, f"✅ **Data/Ora:** {testo_msg}\n\n**STEP 3:** Durata in minuti:", tastiera_durata)
+                        except ValueError:
+                            serra_main.invia_messaggio(chat_id, "⚠️ Formato errato. Usa `GG/MM/AAAA HH:MM` (es. `20/11/2026 15:30`):")
+
+                    elif tipo_attuale == "cal_durata":
+                        if not testo_msg.isdigit():
+                            serra_main.invia_messaggio(chat_id, "⚠️ Inserisci solo il numero di minuti (es. 60):")
+                            continue
+                        serra_main.invia_messaggio(chat_id, "⏳ Verifica disponibilità su Google Calendar...", {"remove_keyboard": True})
+                        _, messaggio_risposta = serra_main.verifica_e_prenota_appuntamento(serra_main.stato_utenti[chat_id]["appunti"], serra_main.stato_utenti[chat_id]["data"], int(testo_msg))
+                        serra_main.invia_messaggio(chat_id, messaggio_risposta, serra_main.TASTIERA_PRINCIPALE)
+                        serra_main.stato_utenti[chat_id] = {"condominio": None, "data": None, "foto": [], "appunti": "", "tipo": None}
+
+                    else:
+                        if testo_msg and not testo_msg.startswith("/"):
+                            serra_main.invia_messaggio(chat_id, "🤖 _Analisi richiesta con Master Agent..._", {"remove_keyboard": True})
+                            risposta_json = serra_main.esegui_master_agent(testo_msg)
+                            try:
+                                dati = json.loads(risposta_json)
+                                azione = dati.get("azione")
+                                p = dati.get("parametri", {})
+                                if azione == "calendario":
+                                    _, msg_cal = serra_main.verifica_e_prenota_appuntamento(p.get("titolo"), p.get("data_ora"), p.get("durata_minuti", 60))
+                                    serra_main.invia_messaggio(chat_id, msg_cal, serra_main.TASTIERA_PRINCIPALE)
+                                elif azione == "promemoria":
+                                    if serra_main.invia_email_promemoria(p.get("testo"), p.get("oggetto")):
+                                        serra_main.invia_messaggio(chat_id, f"🚀 **EMAIL INVIATA!**\nOggetto: {p.get('oggetto')}", serra_main.TASTIERA_PRINCIPALE)
+                                    else:
+                                        serra_main.invia_messaggio(chat_id, "⚠️ Errore invio email.", serra_main.TASTIERA_PRINCIPALE)
+                                elif azione == "ricerca":
+                                    risp_ricerca = serra_main.ricerca_mirata_ia(p.get("condominio"), p.get("domanda"))
+                                    serra_main.invia_messaggio(chat_id, f"📚 **RISPOSTA:**\n\n{risp_ricerca}", serra_main.TASTIERA_PRINCIPALE)
+                                else:
+                                    serra_main.invia_messaggio(chat_id, f"🤖 {p.get('risposta', 'Fatto.')}", serra_main.TASTIERA_PRINCIPALE)
+                            except Exception as e:
+                                serra_main.invia_messaggio(chat_id, f"⚠️ Usa i pulsanti del menu oppure riformula la richiesta.\n({e})", serra_main.TASTIERA_PRINCIPALE)
+
+            except urllib.error.URLError:
+                pass
+            except Exception as e_poll:
+                time.sleep(2)
+
+    except Exception as e_fatal:
+        print(f"⚠️ Errore critico nel loop Telegram Bot: {e_fatal}")
+    finally:
+        _serra_bot_active = False
+
+
+@app.post("/api/serra-mobile/bot/start")
+def start_serra_mobile_bot():
+    """Avvia il polling Telegram del bot S.E.R.R.A. Mobile in background."""
+    global _serra_bot_thread, _serra_bot_stop_event, _serra_bot_active
+    if _serra_bot_thread and _serra_bot_thread.is_alive():
+        return {"status": "already_running", "messaggio": "Bot già in esecuzione"}
+    _serra_bot_stop_event.clear()
+    _serra_bot_thread = threading.Thread(target=_run_telegram_bot_loop, daemon=True)
+    _serra_bot_thread.start()
+    return {"status": "started", "messaggio": "Bot S.E.R.R.A. Mobile avviato in background"}
+
+
+@app.post("/api/serra-mobile/bot/stop")
+def stop_serra_mobile_bot():
+    """Arresta il polling Telegram del bot S.E.R.R.A. Mobile."""
+    global _serra_bot_stop_event, _serra_bot_active
+    _serra_bot_stop_event.set()
+    _serra_bot_active = False
+    return {"status": "stopping", "messaggio": "Segnale di arresto inviato al Bot"}
+
 
 
 # ---------------------------------------------------------
