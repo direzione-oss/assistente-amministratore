@@ -2243,7 +2243,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     <div className="flex h-screen bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
       {/* SIDEBAR DEDICATA AL RENDICONTO (nascosta su smartphone o se richiesta vista singola/senza sidebar) */}
       {!HIDE_SIDEBAR && (
-      <aside className="hidden md:flex w-72 bg-slate-950 text-white flex-col justify-between shrink-0 shadow-2xl z-20">
+      <aside className="hidden md:flex w-80 bg-slate-950 text-white flex-col justify-between shrink-0 shadow-2xl z-20">
         <div>
           {/* Logo & Titolo */}
           <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
@@ -2285,7 +2285,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <LayoutDashboard className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'dashboard' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'dashboard' ? 'font-extrabold text-slate-950' : ''}`}>
                   Dashboard Scadenze
                 </span>
               </span>
@@ -2326,7 +2326,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <Building2 className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'condomini' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'condomini' ? 'font-extrabold text-slate-950' : ''}`}>
                   Condomini & Checklist
                 </span>
               </span>
@@ -2365,7 +2365,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'rendiconto' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'rendiconto' ? 'font-extrabold text-slate-950' : ''}`}>
                   Procedura Rendiconto
                 </span>
               </span>
@@ -2404,7 +2404,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <Users className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'assemblee' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'assemblee' ? 'font-extrabold text-slate-950' : ''}`}>
                   Gestione Assemblee
                 </span>
               </span>
@@ -2445,7 +2445,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <Camera className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'sopralluoghi' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'sopralluoghi' ? 'font-extrabold text-slate-950' : ''}`}>
                   Rilievi & Campo
                 </span>
               </span>
@@ -2484,7 +2484,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 >
                   <Settings className="w-4 h-4" />
                 </span>
-                <span className={`truncate text-sm ${activeTab === 'impostazioni' ? 'font-extrabold text-slate-950' : ''}`}>
+                <span className={`whitespace-nowrap text-sm ${activeTab === 'impostazioni' ? 'font-extrabold text-slate-950' : ''}`}>
                   Impostazioni Passi
                 </span>
               </span>
