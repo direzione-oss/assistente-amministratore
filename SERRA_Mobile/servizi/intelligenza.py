@@ -37,6 +37,8 @@ def chiama_ia_testuale(prompt_ia):
     if USA_GEMINI:
         keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
         for k in keys:
+            if not k:
+                continue
             try:
                 c = genai.Client(api_key=k)
                 risposta = c.models.generate_content(
@@ -49,19 +51,22 @@ def chiama_ia_testuale(prompt_ia):
                 print(f"⚠️ Errore Gemini key (...{k[-6:]}): {e}. Tentativo successiva...")
                 continue
             
-    URL_OLLAMA = "http://127.0.0.1:11434/api/generate"
-    dati = {"model": "llama3.2:latest", "prompt": prompt_ia, "stream": False}
-    try:
-        req = urllib.request.Request(
-            URL_OLLAMA,
-            data=json.dumps(dati).encode('utf-8'),
-            headers={"Content-Type": "application/json"},
-            method='POST'
-        )
-        resp = urllib.request.urlopen(req, context=contesto_ssl, timeout=120)
-        return json.loads(resp.read().decode('utf-8')).get("response", "").strip()
-    except Exception as e:
-        return f"⚠️ Errore IA: {e}"
+    # Prova Ollama solo se abilitato esplicitamente e raggiungibile
+    if getattr(config, "ENABLE_OLLAMA", False):
+        URL_OLLAMA = getattr(config, "URL_OLLAMA", "http://127.0.0.1:11434/api/generate")
+        dati = {"model": "llama3.2:latest", "prompt": prompt_ia, "stream": False}
+        try:
+            req = urllib.request.Request(
+                URL_OLLAMA,
+                data=json.dumps(dati).encode('utf-8'),
+                headers={"Content-Type": "application/json"},
+                method='POST'
+            )
+            resp = urllib.request.urlopen(req, context=contesto_ssl, timeout=10)
+            return json.loads(resp.read().decode('utf-8')).get("response", "").strip()
+        except Exception as e:
+            print(f"⚠️ Errore Ollama: {e}")
+    return ""
 
 def trascrivi_audio_con_whisper(percorso_audio):
     if not MODELLO_WHISPER:
@@ -130,7 +135,23 @@ def genera_testo_ia(nome_condominio, testo_messaggio, data_ispezione, tipo="inte
         f"professionale per '{nome_condominio}' (Data: {data_ispezione}). "
         f"Appunti rilevati sul campo: '{testo_messaggio}'. Usa un elenco puntato chiaro, massimo 4-5 righe."
     )
-    return chiama_ia_testuale(prompt_ia)
+    risposta_ia = chiama_ia_testuale(prompt_ia)
+    if risposta_ia and not risposta_ia.startswith("⚠️") and len(risposta_ia.strip()) > 10:
+        return risposta_ia.strip()
+
+    # Fallback deterministico di sicurezza professionale se l'IA non risponde
+    righe_raw = [r.strip() for r in (testo_messaggio or "").replace(";", "\n").split("\n") if r.strip()]
+    if not righe_raw:
+        righe_raw = ["Ispezione e controllo generale dello stato dei luoghi e degli impianti condominiali."]
+    punti = "\n".join([f"• {r}" for r in righe_raw[:6]])
+    azione = "Sopralluogo tecnico di ispezione" if tipo == "sopralluogo" else "Segnalazione di intervento manutentivo urgente"
+    return (
+        f"{azione} effettuato in data {data_ispezione} presso il condominio {nome_condominio} "
+        f"a cura del Tecnico Rilevatore {nome_tecnico}.\n\n"
+        f"Riepilogo delle rilevazioni e note registrate sul campo:\n"
+        f"{punti}\n\n"
+        f"Si rimanda al fascicolo fotografico allegato per i riscontri visivi di dettaglio."
+    )
 
 def esegui_agente_segretario(messaggio_utente, percorso_foto=None):
     prompt_agente = """Sei l'Agente Segretario dello Studio Serra. Analizza la richiesta e scegli tra 3 azioni:

@@ -38,17 +38,27 @@ class _AuthorizedUsers(list):
 _raw_ids = [x.strip() for x in os.environ.get("ID_AUTORIZZATI", "").split(",") if x.strip()]
 ID_AUTORIZZATI = _AuthorizedUsers(_raw_ids)
 
-# Google Gemini API Keys (con rotazione automatica e fallback)
-_DEFAULT_GEMINI_KEYS = [
-    "AIzaSyAE8RUpteaZ0qbiw3p2UxEaZXOYQ2mcxuA",
-    "AIzaSyBJHNBeg7o_gUalsUKRNhmsGZFVEhPP4Lg"
-]
+# Google Gemini API Keys
+GEMINI_API_KEYS = []
 _env_gemini = os.environ.get("GEMINI_API_KEY", "").strip()
-if _env_gemini and _env_gemini not in _DEFAULT_GEMINI_KEYS:
-    GEMINI_API_KEYS = [_env_gemini] + _DEFAULT_GEMINI_KEYS
-else:
-    GEMINI_API_KEYS = _DEFAULT_GEMINI_KEYS
-CHIAVE_GEMINI = GEMINI_API_KEYS[0]
+if _env_gemini:
+    GEMINI_API_KEYS.append(_env_gemini)
+
+# Cerca eventuale chiave in file .env (locale o volume persistente VPS /app/data)
+for _env_path in ["/app/data/.env", "/data/assistente/.env", os.path.join(BASE_DIR, ".env"), os.path.join(BASE_DIR, "..", ".env")]:
+    if os.path.exists(_env_path):
+        try:
+            with open(_env_path, "r", encoding="utf-8") as _ef:
+                for _l in _ef:
+                    _l = _l.strip()
+                    if _l.startswith("GEMINI_API_KEY="):
+                        _val = _l.split("=", 1)[1].strip().strip('"').strip("'")
+                        if _val and _val not in GEMINI_API_KEYS:
+                            GEMINI_API_KEYS.append(_val)
+        except Exception:
+            pass
+
+CHIAVE_GEMINI = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else ""
 
 # Configurazione SMTP Studio Serra (per invio promemoria allo staff)
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
