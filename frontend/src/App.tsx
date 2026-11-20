@@ -2245,21 +2245,40 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       {!HIDE_SIDEBAR && (
       <aside className="hidden md:flex w-80 bg-slate-950 text-white flex-col justify-between shrink-0 shadow-2xl z-20">
         <div>
-          {/* Logo & Titolo */}
-          <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
-            <img
-              src="/logo-studio-serra.png"
-              alt="Studio Serra"
-              className="w-11 h-11 rounded-xl object-contain bg-white p-0.5 shadow-lg shrink-0"
-            />
-            <div>
-              <h1 className="font-black text-sm tracking-wide text-white leading-tight">
-                <span className="block text-white text-base">CRM</span>
-                <span className="block text-amber-400 font-bold">StudioSerra</span>
-              </h1>
-              <p className="text-[11px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
-                <span>Rendiconti & Assemblee</span>
-                <span className="text-[10px] px-1.5 py-0.2 bg-amber-400/20 text-amber-300 rounded">Mod. 5</span>
+          {/* Logo & Titolo con Centrale Operativa e Acronimo S.E.R.R.A. */}
+          <div className="p-4 border-b border-slate-800/80 space-y-2.5">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo-studio-serra.png"
+                alt="Studio Serra"
+                className="w-11 h-11 rounded-xl object-contain bg-white p-0.5 shadow-lg shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <h1 className="font-black text-sm tracking-wide text-white leading-tight">
+                  <span className="text-white text-base font-black">CRM </span>
+                  <span className="text-amber-400 font-bold text-base">StudioSerra</span>
+                </h1>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="text-xs font-bold text-slate-200 tracking-wide">
+                    Centrale Operativa
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Acronimo S.E.R.R.A. sotto la scritta Centrale Operativa */}
+            <div className="bg-slate-900/90 rounded-xl px-3 py-2 border border-slate-800/90 shadow-inner">
+              <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                <span className="text-[11px] font-black tracking-widest text-amber-400 font-mono">
+                  S.E.R.R.A.
+                </span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/15 text-amber-300 font-bold border border-amber-500/20">
+                  Mod. 5 & Bot
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 font-medium leading-tight">
+                Sistema Esecutivo di Ricerca a Risposta Autonoma
               </p>
             </div>
           </div>
