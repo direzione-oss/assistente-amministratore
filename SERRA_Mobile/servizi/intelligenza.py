@@ -35,6 +35,26 @@ BASE_ARCHIVIO = os.path.join(config.CARTELLA_IA, "2_Gia_Letti_dall_IA")
 
 MODELLI_GEMINI_PRIORITARI = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
+def notifica_consumo_token_crm(input_tokens, output_tokens, operazione="Sintesi Sopralluogo"):
+    urls = [
+        "http://dettofatto00000000000001:3000/api/gemini-billing",
+        "https://dettofatto.187.126.30.207.sslip.io/api/gemini-billing",
+        "http://localhost:3000/api/gemini-billing"
+    ]
+    payload = json.dumps({
+        "action": "record",
+        "inputTokens": input_tokens,
+        "outputTokens": output_tokens,
+        "operation": operazione
+    }).encode("utf-8")
+    for u in urls:
+        try:
+            req = urllib.request.Request(u, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=1.5, context=contesto_ssl)
+            break
+        except Exception:
+            continue
+
 def chiama_ia_testuale(prompt_ia):
     if USA_GEMINI:
         keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
@@ -49,6 +69,13 @@ def chiama_ia_testuale(prompt_ia):
                         contents=prompt_ia
                     )
                     if risposta and risposta.text:
+                        try:
+                            um = getattr(risposta, 'usage_metadata', None)
+                            in_t = getattr(um, 'prompt_token_count', 800) if um else 800
+                            out_t = getattr(um, 'candidates_token_count', 400) if um else 400
+                            notifica_consumo_token_crm(in_t, out_t, "Sintesi Sopralluogo Assistente")
+                        except Exception:
+                            pass
                         return risposta.text.strip()
                 except Exception as e:
                     # Se il modello non è supportato/trovato, prova il prossimo modello
