@@ -2,6 +2,7 @@ import os
 import json
 import urllib.request
 import ssl
+from typing import Optional, Dict, Any, List
 
 try:
     import config
@@ -224,38 +225,105 @@ anagrafica: {"azione": "anagrafica", "testo": "..."}"""
                 break
     return f'{{"azione": "errore", "testo": "Errore Agente: {ultimo_errore}"}}'
 
+def _deterministico_master_agent(msg: str) -> Optional[str]:
+    """Fallback deterministico intelligente per instradare le richieste verso il CRM."""
+    m = msg.lower().strip()
+    
+    # 1. Briefing e Stato Studio
+    if any(k in m for k in ["cruscotto", "stato studio", "riepilogo studio", "panoramica", "briefing", "come va lo studio"]):
+        return json.dumps({"azione": "crm_briefing", "parametri": {}})
+
+    # 2. Fornitori & Rubrica
+    for cat, kw in [
+        ("Idraulica & Caldaie", ["idraulic", "caldaia", "tubo", "perdita acqua"]),
+        ("Elettricista & Automazioni", ["elettric", "cancello", "citofon", "corrente", "luce"]),
+        ("Ascensori", ["ascensor", "elevatore"]),
+        ("Spurghi", ["spurg", "fogn"]),
+        ("Fabbro", ["fabbro", "serratur", "porta bloccata"]),
+        ("Generale", ["fornitor", "manutentor", "chi chiam"])
+    ]:
+        if any(w in m for w in kw):
+            return json.dumps({"azione": "crm_fornitore", "parametri": {"categoria": cat if cat != "Generale" else ""}})
+
+    # 3. Ticket & Guasti
+    if any(k in m for k in ["ticket", "guasti", "guasto", "interventi aperti", "riparazion"]):
+        return json.dumps({"azione": "crm_ticket", "parametri": {}})
+
+    # 4. Scadenze & CPI
+    if any(k in m for k in ["scadenz", "cpi", "antincendio", "adempiment", "obbligh"]):
+        return json.dumps({"azione": "crm_scadenze", "parametri": {}})
+
+    # 5. Saldi e Condomini
+    if any(k in m for k in ["saldo", "cassa", "fondo cassa", "moros", "conto", "iban", "codice fiscale", "condominio"]):
+        # Estrai eventuale nome
+        words = msg.split()
+        cand_name = " ".join([w for w in words if w.lower().strip("?.,! ") not in ["qual", "qual è", "quale", "è", "il", "lo", "la", "del", "della", "dello", "dei", "di", "conto", "saldo", "cassa", "fondo", "morosità", "condominio", "mi", "dici", "dammi"]])
+        cand_clean = cand_name.strip("?.,! ")
+        return json.dumps({"azione": "crm_condominio", "parametri": {"condominio": cand_clean or msg}})
+
+    # 6. Promemoria Staff
+    if any(k in m for k in ["promemoria", "avvisa lo staff", "scrivi allo staff", "ricorda allo staff"]):
+        return json.dumps({"azione": "promemoria", "parametri": {"oggetto": "📌 Promemoria Staff", "testo": msg}})
+
+    # 7. Calendario
+    if any(k in m for k in ["fissa", "prenota", "appuntamento", "calendario"]):
+        return None
+
+    return None
+
 def esegui_master_agent(messaggio_utente):
     from datetime import datetime
     oggi = datetime.now().strftime("%d/%m/%Y")
-    prompt_agente = f"""Sei il Master Agent del Sistema S.E.R.R.A. Oggi è il {oggi}.
-Scegli lo strumento adatto tra:
-1. "calendario": fissare appuntamenti. Parametri: "titolo", "data_ora" (GG/MM/AAAA HH:MM), "durata_minuti" (intero).
-2. "promemoria": inviare email/note allo staff. Parametri: "oggetto", "testo".
-3. "ricerca": cercare informazioni nell'archivio. Parametri: "condominio" (nome o GENERICA), "domanda".
-4. "chat": conversazione generica. Parametri: "risposta".
+    prompt_agente = f"""Sei il Master Agent del Sistema S.E.R.R.A. e del CRM Studio Serra. Oggi è il {oggi}.
+Il tuo compito è comprendere la richiesta dell'amministratore e instradarla correttamente:
+1. "crm_briefing": panoramica generale dello studio, totale condomini, cassa, morosità, ticket aperti. Parametri: {{}}
+2. "crm_condominio": informazioni economiche/tecniche su un condominio specifico (saldo cassa, morosità, unità, ticket, scadenze). Parametri: "condominio" (nome estratto del condominio).
+3. "crm_ticket": consultazione o ricerca ticket di manutenzione e guasti. Parametri: "condominio" (opzionale).
+4. "crm_scadenze": scadenze obbligatorie, CPI, assicurazioni o compiti. Parametri: "tipo" (opzionale).
+5. "crm_fornitore": rubrica e numeri dei tecnici/manutentori (idraulico, elettricista, ascensori, spurghi, ecc.). Parametri: "categoria" o "nome".
+6. "calendario": fissare appuntamenti su Google Calendar. Parametri: "titolo", "data_ora" (GG/MM/AAAA HH:MM), "durata_minuti" (intero).
+7. "promemoria": inviare email/note allo staff operativo. Parametri: "oggetto", "testo".
+8. "ricerca": cercare informazioni tecniche o storiche nei fascicoli d'archivio PDF. Parametri: "condominio" (nome o CARTELLA GENERICA), "domanda".
+9. "chat": risposta a chiarimenti o istruzioni. Parametri: "risposta".
 
-RISPONDI SOLO CON JSON VALIDO. Esempio: {{"azione": "calendario", "parametri": {{"titolo": "Sopralluogo", "data_ora": "{oggi} 15:00", "durata_minuti": 60}}}}"""
+RISPONDI SOLO CON JSON VALIDO. Esempi:
+- "Qual è il fondo cassa del condominio Betulla?" -> {{"azione": "crm_condominio", "parametri": {{"condominio": "Betulla"}}}}
+- "Ci sono ticket o guasti aperti?" -> {{"azione": "crm_ticket", "parametri": {{}}}}
+- "Chi è l'idraulico dello studio?" -> {{"azione": "crm_fornitore", "parametri": {{"categoria": "Idraulica"}}}}
+- "Stato dello studio" -> {{"azione": "crm_briefing", "parametri": {{}}}}
+- "Fissa sopralluogo domani alle 15" -> {{"azione": "calendario", "parametri": {{"titolo": "Sopralluogo", "data_ora": "{oggi} 15:00", "durata_minuti": 60}}}}"""
     
-    if not USA_GEMINI:
-        return '{"azione": "chat", "parametri": {"risposta": "Attiva Gemini per usare il Master Agent."}}'
+    # Prova con Gemini se disponibile
+    if USA_GEMINI:
+        keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
+        for k in keys:
+            if not k:
+                continue
+            for mod in MODELLI_GEMINI_PRIORITARI:
+                try:
+                    c = genai.Client(api_key=k)
+                    risposta = c.models.generate_content(
+                        model=mod,
+                        contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
+                    )
+                    if risposta and risposta.text:
+                        raw = risposta.text.replace("```json", "").replace("```", "").strip()
+                        # Verifica validità JSON
+                        json.loads(raw)
+                        return raw
+                except Exception as e:
+                    if "404" in str(e) or "NOT_FOUND" in str(e):
+                        continue
+                    break
 
-    keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
-    ultimo_errore = ""
-    for k in keys:
-        if not k:
-            continue
-        for mod in MODELLI_GEMINI_PRIORITARI:
-            try:
-                c = genai.Client(api_key=k)
-                risposta = c.models.generate_content(
-                    model=mod,
-                    contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
-                )
-                if risposta and risposta.text:
-                    return risposta.text.replace("```json", "").replace("```", "").strip()
-            except Exception as e:
-                ultimo_errore = str(e)
-                if "404" in str(e) or "NOT_FOUND" in str(e):
-                    continue
-                break
-    return f'{{"azione": "chat", "parametri": {{"risposta": "Errore Agente: {ultimo_errore}"}}}}'
+    # Fallback deterministico intelligente su parole chiave
+    det = _deterministico_master_agent(messaggio_utente)
+    if det:
+        return det
+
+    return json.dumps({
+        "azione": "chat",
+        "parametri": {
+            "risposta": "Sono l'Assistente Studio Serra. Puoi usare i pulsanti del menu in basso oppure chiedermi informazioni su condomini, ticket, fornitori, scadenze e appuntamenti."
+        }
+    })

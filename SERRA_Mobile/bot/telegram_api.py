@@ -80,13 +80,19 @@ def invia_documento_telegram(chat_id, percorso_file, didascalia=None):
 def imposta_comandi_bot():
     url = f"https://api.telegram.org/bot{config.TOKEN_TELEGRAM}/setMyCommands"
     comandi = [
-        {"command": "start", "description": "🤖 S.E.R.R.A. (Sistema Esecutivo di Ricerca a Risposta Autonoma)"},
-        {"command": "sopralluogo", "description": "📋 1. Report Sopralluogo"},
-        {"command": "intervento", "description": "🛠️ 2. Segnala Intervento"},
-        {"command": "ricerca", "description": "🔎 3. Ricerca Archivio"},
-        {"command": "segreteria", "description": "👩💼 4. Agente Segreteria"},
-        {"command": "promemoria", "description": "📌 5. Promemoria Staff"},
-        {"command": "calendario", "description": "📅 6. Prenota Calendar"}
+        {"command": "start", "description": "🤖 Menù Principale S.E.R.R.A."},
+        {"command": "crm", "description": "🏢 Cruscotto & Dati Studio CRM"},
+        {"command": "condomini", "description": "🏢 Ricerca & Scheda Condomini"},
+        {"command": "tickets", "description": "🛠️ Ticket di Manutenzione & Guasti"},
+        {"command": "scadenze", "description": "🔥 Scadenze, CPI & Task Obbligatori"},
+        {"command": "fornitori", "description": "👥 Rubrica Fornitori & Manutentori"},
+        {"command": "assemblee", "description": "🏛️ Assemblee in Programma"},
+        {"command": "sopralluogo", "description": "📋 Rilievo & Verbale con Foto"},
+        {"command": "intervento", "description": "🛠️ Segnala Guasto da Campo"},
+        {"command": "segreteria", "description": "👩‍💼 Segreteria AI (Bozza/Sollecito/OCR)"},
+        {"command": "promemoria", "description": "📌 Promemoria Email a Staff Studio"},
+        {"command": "calendario", "description": "📅 Appuntamenti Google Calendar"},
+        {"command": "annulla", "description": "❌ Annulla operazione in corso"}
     ]
     data = json.dumps({"commands": comandi}).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})

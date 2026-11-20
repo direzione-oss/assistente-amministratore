@@ -35,6 +35,7 @@ import {
   Send,
   FileSignature,
   Sparkles,
+  Camera,
   LogOut,
 } from 'lucide-react';
 import { LoginScreen } from './components/LoginScreen';
@@ -63,6 +64,7 @@ import {
 import { ImpostazioniView } from './components/ImpostazioniView';
 import { ReportSopralluoghiView } from './components/ReportSopralluoghiView';
 import { MobileConnectModal } from './components/MobileConnectModal';
+import { PromemoriaStaffModal } from './components/PromemoriaStaffModal';
 import {
   calcolaMetrichePassiRendiconto,
   getCustomPassiTemplate,
@@ -413,6 +415,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // Modali
   const [showNewCondoModal, setShowNewCondoModal] = useState(false);
   const [showMobileModal, setShowMobileModal] = useState(false);
+  const [showPromemoriaModal, setShowPromemoriaModal] = useState(false);
   const [condoToDelete, setCondoToDelete] = useState<any | null>(null);
   const [isDeletingCondo, setIsDeletingCondo] = useState(false);
 
@@ -2335,6 +2338,23 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             </button>
 
             <button
+              onClick={() => setActiveTab('sopralluoghi')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+                activeTab === 'sopralluoghi'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <Camera className="w-4 h-4" />
+                Rilievi & Sopralluoghi
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 font-bold">
+                Campo & Bot
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('impostazioni')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
                 activeTab === 'impostazioni'
@@ -2351,17 +2371,30 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               </span>
             </button>
 
-            <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-3">
+            <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-2">
               <button
                 onClick={() => setShowMobileModal(true)}
                 className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-700/60 transition shadow-sm"
               >
                 <span className="flex items-center gap-2.5">
-                  <QrCode className="w-4 h-4 text-amber-400" />
-                  Usa da Cellulare (Wi-Fi)
+                  <Smartphone className="w-4 h-4 text-amber-400" />
+                  Bot Telegram & Cellulare
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                  QR
+                  @bot
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowPromemoriaModal(true)}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition shadow-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Send className="w-4 h-4 text-indigo-400" />
+                  Promemoria allo Staff
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold">
+                  Email
                 </span>
               </button>
 
@@ -5372,6 +5405,19 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
         <button
           type="button"
+          onClick={() => setActiveTab('sopralluoghi')}
+          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[11px] font-bold transition ${
+            activeTab === 'sopralluoghi'
+              ? 'bg-amber-500 text-slate-950'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Camera className="w-4 h-4 mb-0.5" />
+          <span>Rilievi</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('impostazioni')}
           className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition ${
             activeTab === 'impostazioni'
@@ -5388,16 +5434,24 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           onClick={() => setShowMobileModal(true)}
           className="flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[11px] font-bold text-indigo-300 hover:text-white transition"
         >
-          <QrCode className="w-4 h-4 mb-0.5 text-amber-400" />
-          <span>Wi-Fi QR</span>
+          <Smartphone className="w-4 h-4 mb-0.5 text-amber-400" />
+          <span>Bot / QR</span>
         </button>
       </nav>
 
-      {/* MODALE CONNESSIONE DA CELLULARE VIA WI-FI LOCALE (QR CODE) */}
+      {/* MODALE CONNESSIONE DA CELLULARE VIA WI-FI LOCALE E TELEGRAM BOT */}
       <MobileConnectModal
         isOpen={showMobileModal}
         onClose={() => setShowMobileModal(false)}
         apiBase={API_BASE}
+        onNotify={notify}
+      />
+
+      {/* MODALE PROMEMORIA STAFF VIA EMAIL */}
+      <PromemoriaStaffModal
+        isOpen={showPromemoriaModal}
+        onClose={() => setShowPromemoriaModal(false)}
+        apiBase={`${API_BASE}/api`}
         onNotify={notify}
       />
     </div>
