@@ -2313,7 +2313,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <FileSpreadsheet className="w-4 h-4" />
                 Procedura Rendiconto
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 font-bold">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 font-bold whitespace-nowrap shrink-0">
                 58+5 Passi
               </span>
             </button>
@@ -2330,7 +2330,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <Users className="w-4 h-4" />
                 Gestione Assemblee
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-200 font-bold">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-200 font-bold whitespace-nowrap shrink-0">
                 {stats.assembleeAttiveCount > 0
                   ? `${stats.assembleeAttiveCount} Attive`
                   : '5 Passi'}
@@ -2349,7 +2349,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <Camera className="w-4 h-4" />
                 Rilievi & Sopralluoghi
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 font-bold">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 font-bold whitespace-nowrap shrink-0">
                 Campo & Bot
               </span>
             </button>
@@ -2366,7 +2366,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <Settings className="w-4 h-4" />
                 Impostazioni Passaggi
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200 font-bold">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200 font-bold whitespace-nowrap shrink-0">
                 {getCustomPassiTemplate().length} Passi
               </span>
             </button>
@@ -2567,13 +2567,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       {/* AREA PRINCIPALE */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* HEADER SUPERIORE */}
-        <header className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-30 shadow-sm">
+        <header className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2.5 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-xs shrink-0">
           {!IS_EMBED_MODE && (
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-extrabold text-slate-950 text-sm shadow shrink-0">
                 R5
               </div>
-              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-200 truncate">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-200 truncate shrink-0">
                 Studio Serra • Rendiconti
               </span>
               <span className="text-xs text-slate-500 hidden xl:inline truncate">
@@ -2582,41 +2582,31 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => setShowMobileModal(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold transition shadow-sm"
-              title="Apri sul cellulare tramite QR Code Wi-Fi"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Apri sul cellulare tramite Bot Telegram o QR Wi-Fi"
             >
               <Smartphone className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="hidden sm:inline">Usa da Cellulare (QR)</span>
-              <span className="sm:hidden">QR</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('assemblee')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 text-xs font-bold transition shadow-sm"
-            >
-              <Users className="w-4 h-4 text-purple-600 shrink-0" />
-              <span>Gestione Assemblee</span>
+              <span className="hidden sm:inline">Bot & Mobile</span>
             </button>
 
             <button
               onClick={() => setActiveTab('rendiconto')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition shadow-sm"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition shadow-xs cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Procedura Modello 5</span>
+              <span>Modello 5</span>
             </button>
 
             <button
               onClick={() => setActiveTab('impostazioni')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-sm cursor-pointer ${
+              className={`hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-xs cursor-pointer ${
                 activeTab === 'impostazioni'
                   ? 'bg-amber-500 text-slate-950 border-amber-600'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
               }`}
-              title="Impostazioni: modifica, aggiungi o elimina i passaggi del Rendiconto"
             >
               <Settings className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>Impostazioni</span>
@@ -2625,7 +2615,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={() => loadAllData()}
               disabled={loading}
-              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer"
               title="Ricarica dati"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -2634,7 +2624,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             {!IS_EMBED_MODE && (
               <button
                 onClick={onLogout}
-                className="p-1.5 rounded-xl border border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 transition"
+                className="p-1.5 rounded-xl border border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 transition cursor-pointer"
                 title="Esci dall'account"
               >
                 <LogOut className="w-4 h-4" />
@@ -2690,7 +2680,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               </div>
 
               {/* KPI TILES RENDICONTI & ASSEMBLEE (TUTTI CLICCABILI CON FINESTRA CORRISPONDENTE SOTTO) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3.5">
                 {/* 1. GESTIONI CHIUSE (180GG) */}
                 <button
                   type="button"
@@ -2698,28 +2688,28 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                     setSelectedKpiCard('chiuse');
                     setSoloScadenzeImminenti(false);
                   }}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'chiuse'
                       ? 'bg-gradient-to-br from-amber-50 to-orange-50/70 border-2 border-amber-500 ring-4 ring-amber-200/60 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span
-                        className={`text-xs font-extrabold uppercase block ${
+                        className={`text-[11px] font-extrabold uppercase block truncate leading-tight ${
                           selectedKpiCard === 'chiuse' ? 'text-amber-900' : 'text-slate-400'
                         }`}
                       >
                         Gestioni Chiuse (180gg)
                       </span>
                       <div className="text-2xl font-black text-slate-900 mt-1">{stats.chiuse}</div>
-                      <span className="text-xs text-slate-500 block">
+                      <span className="text-xs text-slate-500 block truncate">
                         su {stats.totali} condomini totali
                       </span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'chiuse'
                           ? 'bg-amber-500 text-white shadow-sm'
                           : 'bg-amber-50 text-amber-600'
@@ -2744,16 +2734,16 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSelectedKpiCard('pronti')}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'pronti'
                       ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 ring-4 ring-emerald-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span
-                        className={`text-xs font-extrabold uppercase block ${
+                        className={`text-[11px] font-extrabold uppercase block truncate leading-tight ${
                           selectedKpiCard === 'pronti' ? 'text-emerald-900' : 'text-emerald-700'
                         }`}
                       >
@@ -2762,12 +2752,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                       <div className="text-2xl font-black text-emerald-700 mt-1">
                         {stats.prontiDaFareCount}
                       </div>
-                      <span className="text-xs text-emerald-700 font-medium block">
+                      <span className="text-xs text-emerald-700 font-medium block truncate">
                         scaduti • 100% dati
                       </span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'pronti'
                           ? 'bg-emerald-500 text-white shadow-sm'
                           : 'bg-emerald-50 text-emerald-600'
@@ -2792,16 +2782,16 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSelectedKpiCard('attesa_assemblea')}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'attesa_assemblea'
                       ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-500 ring-4 ring-purple-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span
-                        className={`text-xs font-extrabold uppercase block ${
+                        className={`text-[11px] font-extrabold uppercase block truncate leading-tight ${
                           selectedKpiCard === 'attesa_assemblea' ? 'text-purple-900' : 'text-purple-700'
                         }`}
                       >
@@ -2810,12 +2800,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                       <div className="text-2xl font-black text-purple-700 mt-1">
                         {stats.attesaAssembleaCount}
                       </div>
-                      <span className="text-xs text-purple-700 font-medium block">
+                      <span className="text-xs text-purple-700 font-medium block truncate">
                         {stats.assembleeInAttesaOrdinarieCount} ord. (p.57) • {stats.assembleeInAttesaStraordinarieCount} straord.
                       </span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'attesa_assemblea'
                           ? 'bg-purple-600 text-white shadow-sm'
                           : 'bg-purple-50 text-purple-600'
@@ -2840,16 +2830,16 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSelectedKpiCard('convocate_verbale')}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'convocate_verbale'
                       ? 'bg-gradient-to-br from-indigo-50 to-violet-50 border-2 border-indigo-500 ring-4 ring-indigo-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span
-                        className={`text-[11px] font-extrabold uppercase block leading-tight ${
+                        className={`text-[11px] font-extrabold uppercase block truncate leading-tight ${
                           selectedKpiCard === 'convocate_verbale' ? 'text-indigo-900' : 'text-indigo-700'
                         }`}
                       >
@@ -2860,12 +2850,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                           {stats.convocateVerbaleCount}
                         </span>
                       </div>
-                      <span className="text-xs text-indigo-700 font-medium block">
-                        Post-assemblea • {stats.assembleeCompletamentoOrdinarieCount} ord. • {stats.assembleeCompletamentoStraordinarieCount} straord.
+                      <span className="text-xs text-indigo-700 font-medium block truncate">
+                        Post-ass. • {stats.assembleeCompletamentoOrdinarieCount} ord. • {stats.assembleeCompletamentoStraordinarieCount} str.
                       </span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'convocate_verbale'
                           ? 'bg-indigo-600 text-white shadow-sm'
                           : 'bg-indigo-50 text-indigo-600'
@@ -2893,22 +2883,22 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                     setSelectedKpiCard('urgenti');
                     setSoloScadenzeImminenti(true);
                   }}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'urgenti'
                       ? 'bg-gradient-to-br from-rose-50 to-red-50/70 border-2 border-rose-500 ring-4 ring-rose-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-rose-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
-                      <span className="text-xs font-extrabold uppercase text-rose-600 block">
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-extrabold uppercase text-rose-600 block truncate leading-tight">
                         Scadenze Imminenti (≤ 60gg)
                       </span>
                       <div className="text-2xl font-black text-rose-600 mt-1">{stats.urgenti60gg}</div>
-                      <span className="text-xs text-rose-500 block">priorità di convocazione</span>
+                      <span className="text-xs text-rose-500 block truncate">priorità di convocazione</span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'urgenti'
                           ? 'bg-rose-600 text-white shadow-sm'
                           : 'bg-rose-50 text-rose-600'
@@ -2933,24 +2923,24 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSelectedKpiCard('mancanti')}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'mancanti'
                       ? 'bg-gradient-to-br from-sky-50 to-indigo-50/70 border-2 border-sky-500 ring-4 ring-sky-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
-                      <span className="text-xs font-extrabold uppercase text-sky-600 block">
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-extrabold uppercase text-sky-600 block truncate leading-tight">
                         Dati & Contatori Mancanti
                       </span>
                       <div className="text-2xl font-black text-sky-700 mt-1">
                         {stats.datiMancantiCount}
                       </div>
-                      <span className="text-xs text-sky-600 block">condomini con dati da reperire</span>
+                      <span className="text-xs text-sky-600 block truncate">condomini con dati da reperire</span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'mancanti'
                           ? 'bg-sky-600 text-white shadow-sm'
                           : 'bg-sky-50 text-sky-600'
@@ -2975,22 +2965,22 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSelectedKpiCard('completati')}
-                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer ${
+                  className={`text-left p-4 rounded-2xl transition flex flex-col justify-between cursor-pointer overflow-hidden ${
                     selectedKpiCard === 'completati'
                       ? 'bg-gradient-to-br from-teal-50 to-emerald-50/70 border-2 border-teal-500 ring-4 ring-teal-200/70 shadow-md -translate-y-0.5'
                       : 'bg-white border border-slate-200 hover:border-teal-400 hover:shadow-md shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full gap-2">
-                    <div>
-                      <span className="text-xs font-extrabold uppercase text-teal-700 block">
+                  <div className="flex items-center justify-between w-full gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[11px] font-extrabold uppercase text-teal-700 block truncate leading-tight">
                         Rendiconti Completati
                       </span>
                       <div className="text-2xl font-black text-teal-700 mt-1">{stats.completati}</div>
-                      <span className="text-xs text-slate-500 block">bilanci approvati / chiusi</span>
+                      <span className="text-xs text-slate-500 block truncate">bilanci approvati / chiusi</span>
                     </div>
                     <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 transition ${
                         selectedKpiCard === 'completati'
                           ? 'bg-teal-600 text-white shadow-sm'
                           : 'bg-emerald-50 text-emerald-600'
