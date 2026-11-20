@@ -110,9 +110,20 @@ Oggetto: {oggetto}
 Corpo:
 {corpo}
 """
-                resp = client.models.generate_content(
-                    model="gemini-2.5-flash", contents=prompt
-                )
+                resp = None
+                for mod_name in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                    try:
+                        resp = client.models.generate_content(
+                            model=mod_name, contents=prompt
+                        )
+                        if resp and resp.text:
+                            break
+                    except Exception as e_mod:
+                        if "404" in str(e_mod) or "NOT_FOUND" in str(e_mod):
+                            continue
+                        break
+                if not resp or not resp.text:
+                    return None
                 raw = resp.text.strip()
                 if "```json" in raw:
                     raw = raw.split("```json")[1].split("```")[0].strip()

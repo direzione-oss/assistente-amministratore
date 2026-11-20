@@ -33,23 +33,29 @@ except Exception:
 contesto_ssl = ssl._create_unverified_context()
 BASE_ARCHIVIO = os.path.join(config.CARTELLA_IA, "2_Gia_Letti_dall_IA")
 
+MODELLI_GEMINI_PRIORITARI = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+
 def chiama_ia_testuale(prompt_ia):
     if USA_GEMINI:
         keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
         for k in keys:
             if not k:
                 continue
-            try:
-                c = genai.Client(api_key=k)
-                risposta = c.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt_ia
-                )
-                if risposta and risposta.text:
-                    return risposta.text.strip()
-            except Exception as e:
-                print(f"⚠️ Errore Gemini key (...{k[-6:]}): {e}. Tentativo successiva...")
-                continue
+            for mod in MODELLI_GEMINI_PRIORITARI:
+                try:
+                    c = genai.Client(api_key=k)
+                    risposta = c.models.generate_content(
+                        model=mod,
+                        contents=prompt_ia
+                    )
+                    if risposta and risposta.text:
+                        return risposta.text.strip()
+                except Exception as e:
+                    # Se il modello non è supportato/trovato, prova il prossimo modello
+                    if "404" in str(e) or "NOT_FOUND" in str(e):
+                        continue
+                    print(f"⚠️ Errore Gemini key (...{k[-6:]}) modello {mod}: {e}. Tentativo successiva...")
+                    break
             
     # Prova Ollama solo se abilitato esplicitamente e raggiungibile
     if getattr(config, "ENABLE_OLLAMA", False):
@@ -170,20 +176,25 @@ anagrafica: {"azione": "anagrafica", "testo": "..."}"""
     keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
     ultimo_errore = ""
     for k in keys:
-        try:
-            c = genai.Client(api_key=k)
-            contenuti = [prompt_agente, f"Richiesta: {messaggio_utente}"]
-            if percorso_foto and os.path.exists(percorso_foto):
-                contenuti.append(Image.open(percorso_foto))
-            risposta = c.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contenuti
-            )
-            if risposta and risposta.text:
-                return risposta.text.replace("```json", "").replace("```", "").strip()
-        except Exception as e:
-            ultimo_errore = str(e)
+        if not k:
             continue
+        for mod in MODELLI_GEMINI_PRIORITARI:
+            try:
+                c = genai.Client(api_key=k)
+                contenuti = [prompt_agente, f"Richiesta: {messaggio_utente}"]
+                if percorso_foto and os.path.exists(percorso_foto):
+                    contenuti.append(Image.open(percorso_foto))
+                risposta = c.models.generate_content(
+                    model=mod,
+                    contents=contenuti
+                )
+                if risposta and risposta.text:
+                    return risposta.text.replace("```json", "").replace("```", "").strip()
+            except Exception as e:
+                ultimo_errore = str(e)
+                if "404" in str(e) or "NOT_FOUND" in str(e):
+                    continue
+                break
     return f'{{"azione": "errore", "testo": "Errore Agente: {ultimo_errore}"}}'
 
 def esegui_master_agent(messaggio_utente):
@@ -204,15 +215,20 @@ RISPONDI SOLO CON JSON VALIDO. Esempio: {{"azione": "calendario", "parametri": {
     keys = getattr(config, "GEMINI_API_KEYS", [config.CHIAVE_GEMINI])
     ultimo_errore = ""
     for k in keys:
-        try:
-            c = genai.Client(api_key=k)
-            risposta = c.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
-            )
-            if risposta and risposta.text:
-                return risposta.text.replace("```json", "").replace("```", "").strip()
-        except Exception as e:
-            ultimo_errore = str(e)
+        if not k:
             continue
+        for mod in MODELLI_GEMINI_PRIORITARI:
+            try:
+                c = genai.Client(api_key=k)
+                risposta = c.models.generate_content(
+                    model=mod,
+                    contents=[prompt_agente, f"Richiesta: {messaggio_utente}"]
+                )
+                if risposta and risposta.text:
+                    return risposta.text.replace("```json", "").replace("```", "").strip()
+            except Exception as e:
+                ultimo_errore = str(e)
+                if "404" in str(e) or "NOT_FOUND" in str(e):
+                    continue
+                break
     return f'{{"azione": "chat", "parametri": {{"risposta": "Errore Agente: {ultimo_errore}"}}}}'
