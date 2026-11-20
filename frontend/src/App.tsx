@@ -26,6 +26,7 @@ import {
   Square,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Smartphone,
   QrCode,
   Wifi,
@@ -2264,110 +2265,242 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           </div>
 
           {/* Navigazione essenziale: solo Rendiconto e Dati */}
-          <nav className="p-3 space-y-1.5">
+          <nav className="p-3 space-y-2">
+            {/* Dashboard Scadenze & Dati */}
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'dashboard'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard Scadenze & Dati
-              </span>
-              {stats.urgenti60gg > 0 && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500 text-white font-bold">
-                  {stats.urgenti60gg}
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'dashboard'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
                 </span>
-              )}
+                <span className={`truncate text-sm ${activeTab === 'dashboard' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Dashboard Scadenze
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                {stats.urgenti60gg > 0 && (
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full font-black ${
+                      activeTab === 'dashboard'
+                        ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-400/50'
+                        : 'bg-rose-500 text-white'
+                    }`}
+                  >
+                    {stats.urgenti60gg}
+                  </span>
+                )}
+                {activeTab === 'dashboard' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
+              </span>
             </button>
 
+            {/* Condomini & Checklist Dati */}
             <button
               onClick={() => setActiveTab('condomini')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'condomini'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <Building2 className="w-4 h-4" />
-                Condomini & Checklist Dati
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'condomini'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                </span>
+                <span className={`truncate text-sm ${activeTab === 'condomini' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Condomini & Checklist
+                </span>
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold">
-                {condomini.length}
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-black transition-colors ${
+                    activeTab === 'condomini'
+                      ? 'bg-slate-950 text-amber-300 shadow-sm'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {condomini.length}
+                </span>
+                {activeTab === 'condomini' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
               </span>
             </button>
 
+            {/* Procedura Rendiconto */}
             <button
               onClick={() => setActiveTab('rendiconto')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'rendiconto'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <FileSpreadsheet className="w-4 h-4" />
-                Procedura Rendiconto
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'rendiconto'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                </span>
+                <span className={`truncate text-sm ${activeTab === 'rendiconto' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Procedura Rendiconto
+                </span>
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 font-bold whitespace-nowrap shrink-0">
-                58+5 Passi
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-black whitespace-nowrap transition-colors ${
+                    activeTab === 'rendiconto'
+                      ? 'bg-slate-950 text-amber-300 shadow-sm'
+                      : 'bg-amber-400/20 text-amber-200'
+                  }`}
+                >
+                  58+5 Passi
+                </span>
+                {activeTab === 'rendiconto' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
               </span>
             </button>
 
+            {/* Gestione Assemblee */}
             <button
               onClick={() => setActiveTab('assemblee')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'assemblee'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <Users className="w-4 h-4" />
-                Gestione Assemblee
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'assemblee'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                </span>
+                <span className={`truncate text-sm ${activeTab === 'assemblee' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Gestione Assemblee
+                </span>
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/25 text-purple-200 font-bold whitespace-nowrap shrink-0">
-                {stats.assembleeAttiveCount > 0
-                  ? `${stats.assembleeAttiveCount} Attive`
-                  : '5 Passi'}
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-black whitespace-nowrap transition-colors ${
+                    activeTab === 'assemblee'
+                      ? 'bg-slate-950 text-purple-300 shadow-sm'
+                      : 'bg-purple-500/25 text-purple-200'
+                  }`}
+                >
+                  {stats.assembleeAttiveCount > 0
+                    ? `${stats.assembleeAttiveCount} Attive`
+                    : '5 Passi'}
+                </span>
+                {activeTab === 'assemblee' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
               </span>
             </button>
 
+            {/* Rilievi & Sopralluoghi */}
             <button
               onClick={() => setActiveTab('sopralluoghi')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'sopralluoghi'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <Camera className="w-4 h-4" />
-                Rilievi & Sopralluoghi
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'sopralluoghi'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <Camera className="w-4 h-4" />
+                </span>
+                <span className={`truncate text-sm ${activeTab === 'sopralluoghi' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Rilievi & Campo
+                </span>
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 font-bold whitespace-nowrap shrink-0">
-                Campo & Bot
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-black whitespace-nowrap transition-colors ${
+                    activeTab === 'sopralluoghi'
+                      ? 'bg-slate-950 text-emerald-300 shadow-sm'
+                      : 'bg-emerald-500/25 text-emerald-200'
+                  }`}
+                >
+                  Bot & Web
+                </span>
+                {activeTab === 'sopralluoghi' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
               </span>
             </button>
 
+            {/* Impostazioni Passaggi */}
             <button
               onClick={() => setActiveTab('impostazioni')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`group relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-150 ${
                 activeTab === 'impostazioni'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-lg shadow-amber-500/25 ring-2 ring-amber-300'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white font-medium'
               }`}
             >
-              <span className="flex items-center gap-3">
-                <Settings className="w-4 h-4" />
-                Impostazioni Passaggi
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                    activeTab === 'impostazioni'
+                      ? 'bg-slate-950 text-amber-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                </span>
+                <span className={`truncate text-sm ${activeTab === 'impostazioni' ? 'font-extrabold text-slate-950' : ''}`}>
+                  Impostazioni Passi
+                </span>
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/25 text-indigo-200 font-bold whitespace-nowrap shrink-0">
-                {getCustomPassiTemplate().length} Passi
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-black whitespace-nowrap transition-colors ${
+                    activeTab === 'impostazioni'
+                      ? 'bg-slate-950 text-indigo-300 shadow-sm'
+                      : 'bg-indigo-500/25 text-indigo-200'
+                  }`}
+                >
+                  {getCustomPassiTemplate().length} Passi
+                </span>
+                {activeTab === 'impostazioni' && (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                )}
               </span>
             </button>
 
@@ -5334,9 +5467,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition relative ${
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all relative ${
             activeTab === 'dashboard'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
@@ -5352,9 +5485,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('condomini')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition ${
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all ${
             activeTab === 'condomini'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
@@ -5365,9 +5498,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('rendiconto')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition ${
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all ${
             activeTab === 'rendiconto'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
@@ -5378,9 +5511,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('assemblee')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition relative ${
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all relative ${
             activeTab === 'assemblee'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
@@ -5396,9 +5529,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('sopralluoghi')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[11px] font-bold transition ${
+          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${
             activeTab === 'sopralluoghi'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
@@ -5409,9 +5542,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         <button
           type="button"
           onClick={() => setActiveTab('impostazioni')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition ${
+          className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all ${
             activeTab === 'impostazioni'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md ring-2 ring-amber-300'
               : 'text-slate-400 hover:text-white'
           }`}
         >
