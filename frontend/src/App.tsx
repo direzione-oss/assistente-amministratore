@@ -2249,11 +2249,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               className="w-11 h-11 rounded-xl object-contain bg-white p-0.5 shadow-lg shrink-0"
             />
             <div>
-              <h1 className="font-bold text-sm tracking-wide text-white leading-tight">
-                Studio Serra
+              <h1 className="font-black text-sm tracking-wide text-white leading-tight">
+                <span className="block text-white text-base">CRM</span>
+                <span className="block text-amber-400 font-bold">StudioSerra</span>
               </h1>
-              <p className="text-xs text-amber-400 font-semibold flex items-center gap-1">
-                <span>Gestione Rendiconti</span>
+              <p className="text-[11px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
+                <span>Rendiconti & Assemblee</span>
                 <span className="text-[10px] px-1.5 py-0.2 bg-amber-400/20 text-amber-300 rounded">Mod. 5</span>
               </p>
             </div>
