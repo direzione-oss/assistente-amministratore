@@ -2377,7 +2377,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                       : 'bg-amber-400/20 text-amber-200'
                   }`}
                 >
-                  58+5 Passi
+                  58+5
                 </span>
                 {activeTab === 'rendiconto' && (
                   <ChevronRight className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
