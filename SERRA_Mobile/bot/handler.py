@@ -208,7 +208,9 @@ def invia_elenco_dafare(chat_id: str):
         titolo = d.get("titolo") or "Compito"
         stato = d.get("stato") or "Nuova"
         forn = d.get("fornitore") or "Studio Serra"
-        msg += f"*{idx}.* {prio_icon} `[{prio}]` *{cond}*\n   📌 {titolo}\n   📅 Scadenza/Piano: *{scad}* | Stato: _{stato}_\n   👤 Assegnato: _{forn}_\n\n"
+        fasc = d.get("fascicolo_numero")
+        fasc_str = f" | 📁 *Fascicolo n. {fasc}*" if fasc else ""
+        msg += f"*{idx}.* {prio_icon} `[{prio}]` *{cond}*\n   📌 {titolo}\n   📅 Scadenza/Piano: *{scad}* | Stato: _{stato}_{fasc_str}\n   👤 Assegnato: _{forn}_\n\n"
     invia_messaggio(chat_id, msg, TASTIERA_PRINCIPALE)
 
 def invia_elenco_scadenze(chat_id: str):
@@ -225,7 +227,9 @@ def invia_elenco_scadenze(chat_id: str):
         giorni = s.get("giorni_rimasti")
         badge = f" (tra {giorni} gg)" if giorni is not None and giorni >= 0 else (f" (⚠️ SCADUTA da {abs(giorni)} gg)" if giorni is not None else "")
         forn = s.get("fornitore") or "Da assegnare"
-        msg += f"*{idx}.* 📅 *{dt}*{badge} — *{tipo}*\n   🏢 *{cond}*\n   📌 {titolo}\n   🔧 Ditta/Tecnico: _{forn}_\n\n"
+        fasc = s.get("fascicolo_numero")
+        fasc_str = f" | 📁 *Fascicolo n. {fasc}*" if fasc else ""
+        msg += f"*{idx}.* 📅 *{dt}*{badge} — *{tipo}*\n   🏢 *{cond}*{fasc_str}\n   📌 {titolo}\n   🔧 Ditta/Tecnico: _{forn}_\n\n"
     invia_messaggio(chat_id, msg, TASTIERA_SCADENZE)
 
 def invia_elenco_fornitori(chat_id: str, filtro: Optional[str] = None):

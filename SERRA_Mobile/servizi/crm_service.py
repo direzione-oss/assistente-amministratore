@@ -314,6 +314,7 @@ def elenca_dafare_crm(limite: int = 20) -> List[Dict[str, Any]]:
             "priorita": p.get("priority") or "P2",
             "stato": p.get("status") or "Nuova",
             "data_scadenza": dt_str,
+            "fascicolo_numero": p.get("fascicoloNumero"),
             "fornitore": p.get("supplier") or p.get("assignedTo") or "Studio Serra",
             "note": p.get("note") or ""
         })
@@ -346,6 +347,7 @@ def elenca_scadenze_crm(solo_attive: bool = True, limite: int = 15) -> List[Dict
                 "condominio_nome": s.get("building", ""),
                 "fornitore": s.get("supplier", "Da assegnare"),
                 "priorita": "P1" if giorni <= 15 else "P2",
+                "fascicolo_numero": s.get("fascicoloNumero"),
                 "giorni_rimasti": giorni,
                 "completato": 0
             })
