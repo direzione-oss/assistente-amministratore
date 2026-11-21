@@ -250,19 +250,19 @@ def invia_elenco_fornitori(chat_id: str, filtro: Optional[str] = None):
     invia_messaggio(chat_id, msg, TASTIERA_CRM)
 
 def invia_elenco_assemblee(chat_id: str):
-    ass = crm_service.elenca_assemblee_crm(limite=8)
+    ass = crm_service.elenca_assemblee_crm(limite=20, solo_future=True)
     if not ass:
-        invia_messaggio(chat_id, "🏛️ Nessuna assemblea straordinaria programmata a breve termine.", TASTIERA_CRM)
+        invia_messaggio(chat_id, "🏛️ Nessuna assemblea in programma dalla data odierna in avanti.", TASTIERA_CRM)
         return
     msg = f"🏛️ *ASSEMBLEE IN PROGRAMMA ({len(ass)})*\n────────────────────────\n"
     for idx, a in enumerate(ass, start=1):
         cond = a.get("condominio_nome") or "Condominio"
         titolo = a.get("titolo") or "Assemblea"
-        dt = a.get("data_assemblea") or "Data da definire"
+        dt = a.get("data_formattata") or a.get("data_assemblea") or "Data da definire"
         ora = a.get("ora_assemblea") or ""
         luogo = a.get("luogo_sala") or "Presso Studio Serra"
         stato = a.get("stato") or "In organizzazione"
-        msg += f"*{idx}. {cond}*\n   📋 {titolo}\n   📅 {dt} {ora}\n   📍 {luogo}\n   📌 Stato: _{stato}_\n\n"
+        msg += f"*{idx}. {cond}*\n   📋 {titolo}\n   📅 {dt} {f'(ore {ora})' if ora else ''}\n   📍 {luogo}\n   📌 Stato: _{stato}_\n\n"
     invia_messaggio(chat_id, msg, TASTIERA_CRM)
 
 

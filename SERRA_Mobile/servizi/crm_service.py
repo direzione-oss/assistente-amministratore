@@ -114,10 +114,8 @@ def ottieni_briefing_crm() -> Dict[str, Any]:
         if row_fn:
             res["fornitori_totali"] = row_fn[0]
 
-        # Assemblee
-        row_as = c.execute("SELECT COUNT(*) FROM assemblee_straordinarie WHERE stato NOT IN ('Conclusa', 'Annullata')").fetchone()
-        if row_as:
-            res["assemblee_programmate"] = row_as[0]
+        # Assemblee future (dalla data attuale in avanti)
+        res["assemblee_programmate"] = len(elenca_assemblee_crm(limite=500))
 
         # Top 5 condomini
         top_rows = c.execute("SELECT id, nome, codice_danea, numero_unita, fondo_cassa, totale_morosita FROM condomini WHERE attivo = 1 ORDER BY nome ASC LIMIT 5").fetchall()
@@ -452,8 +450,57 @@ def elenca_fornitori_crm(filtro: Optional[str] = None, limite: int = 15) -> List
         conn.close()
     return risultati
 
-def elenca_assemblee_crm(limite: int = 10) -> List[Dict[str, Any]]:
-    """Elenca le assemblee programmate dal CRM."""
+def _parse_data_assemblea(raw_str: Optional[str]) -> Optional[date]:
+    """Converte vari formati di data assemblea (es. 24-11-26, 2026-11-24, 11/11/2026, 16 17 18 nov) in un oggetto date."""
+    if not raw_str:
+        return None
+    s = str(raw_str).strip()
+    if not s:
+        return None
+
+    # 1. Formato ISO YYYY-MM-DD
+    m_iso = re.search(r"(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})", s)
+    if m_iso:
+        try:
+            return date(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
+        except ValueError:
+            pass
+
+    # 2. Formato italiano DD/MM/YYYY o DD-MM-YY
+    m_it = re.search(r"(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})", s)
+    if m_it:
+        try:
+            d = int(m_it.group(1))
+            m = int(m_it.group(2))
+            y = int(m_it.group(3))
+            if y < 100:
+                y += 2000
+            return date(y, m, d)
+        except ValueError:
+            pass
+
+    # 3. Formato testuale tipo "16 17 18 nov" o "24 novembre 2026"
+    mesi = {
+        "gen": 1, "feb": 2, "mar": 3, "apr": 4, "mag": 5, "giu": 6,
+        "lug": 7, "ago": 8, "set": 9, "ott": 10, "nov": 11, "dic": 12
+    }
+    low = s.lower()
+    for nome_m, num_m in mesi.items():
+        if nome_m in low:
+            nums = [int(n) for n in re.findall(r"\b(\d{1,4})\b", low)]
+            days = [n for n in nums if 1 <= n <= 31]
+            years = [n if n >= 2000 else (2000 + n) for n in nums if (24 <= n <= 99 or n >= 2024)]
+            if days:
+                day_val = max(days)
+                year_val = years[0] if years else date.today().year
+                try:
+                    return date(year_val, num_m, day_val)
+                except ValueError:
+                    pass
+    return None
+
+def elenca_assemblee_crm(limite: int = 20, solo_future: bool = True) -> List[Dict[str, Any]]:
+    """Elenca le assemblee programmate dal CRM filtrando solo quelle dalla data attuale in avanti."""
     risultati = []
     conn = _get_connection()
     if not conn:
@@ -465,11 +512,23 @@ def elenca_assemblee_crm(limite: int = 10) -> List[Dict[str, Any]]:
                    a.luogo_sala, a.stato, c.nome as condominio_nome
             FROM assemblee_straordinarie a
             LEFT JOIN condomini c ON a.condominio_id = c.id
-            WHERE a.stato NOT IN ('Conclusa', 'Annullata')
-            ORDER BY a.data_assemblea ASC LIMIT ?
-        """, (limite,)).fetchall()
+            WHERE LOWER(COALESCE(a.stato, '')) NOT IN ('conclusa', 'annullata', 'chiusa')
+        """).fetchall()
+        oggi = date.today()
+        validi = []
         for r in rows:
-            risultati.append(dict(r))
+            item = dict(r)
+            dt_obj = _parse_data_assemblea(item.get("data_assemblea"))
+            if solo_future:
+                # Mostra solo le assemblee con data >= oggi
+                if not dt_obj or dt_obj < oggi:
+                    continue
+            item["data_iso"] = dt_obj.isoformat() if dt_obj else "9999-12-31"
+            item["data_formattata"] = dt_obj.strftime("%d/%m/%Y") if dt_obj else (item.get("data_assemblea") or "Da definire")
+            validi.append(item)
+
+        validi.sort(key=lambda x: (x["data_iso"], x.get("ora_assemblea") or ""))
+        risultati = validi[:limite]
     except Exception as exc:
         print(f"⚠️ Errore elenco assemblee CRM: {exc}")
     finally:
