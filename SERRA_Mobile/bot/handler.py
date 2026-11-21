@@ -39,16 +39,18 @@ from servizi.calendario import verifica_e_prenota_appuntamento
 
 TASTIERA_PRINCIPALE = {
     "keyboard": [
+        [{"text": "📋 Da Fare"}, {"text": "🔥 Scadenze & CPI"}],
         [{"text": "🏢 Cruscotto CRM"}, {"text": "📋 Sopralluogo & Foto"}],
-        [{"text": "🛠️ Ticket & Guasti"}, {"text": "🔥 Scadenze & CPI"}],
-        [{"text": "👩‍💼 Segreteria AI"}, {"text": "📅 Agenda & Promemoria"}],
-        [{"text": "🔎 Cerca nel CRM"}, {"text": "❓ Guida & Comandi"}]
+        [{"text": "🛠️ Ticket & Guasti"}, {"text": "📅 Agenda & Promemoria"}],
+        [{"text": "👩‍💼 Segreteria AI"}, {"text": "🔎 Cerca nel CRM"}],
+        [{"text": "❓ Guida & Comandi"}]
     ],
     "resize_keyboard": True
 }
 
 TASTIERA_CRM = {
     "keyboard": [
+        [{"text": "📋 Da Fare"}, {"text": "🔥 Scadenze & CPI"}],
         [{"text": "📊 Riepilogo Studio"}, {"text": "🏢 Elenco Condomini"}],
         [{"text": "👥 Rubrica Fornitori"}, {"text": "🏛️ Assemblee in Programma"}],
         [{"text": "🔙 Menu Principale"}]
@@ -192,18 +194,38 @@ def invia_elenco_tickets(chat_id: str):
         msg += f"*{idx}.* `{cod}` | *{cond}*\n   📌 {titolo}\n   🚨 Priorità: _{prio}_ | Stato: *{stato}*\n\n"
     invia_messaggio(chat_id, msg, TASTIERA_TICKETS)
 
+def invia_elenco_dafare(chat_id: str):
+    dfs = crm_service.elenca_dafare_crm(limite=10)
+    if not dfs:
+        invia_messaggio(chat_id, "✅ *Nessun compito Da Fare aperto.* Tutti gli incarichi sono completati!", TASTIERA_PRINCIPALE)
+        return
+    msg = f"📋 *COMPITI DA FARE DELLO STUDIO ({len(dfs)} visualizzati)*\n────────────────────────\n"
+    for idx, d in enumerate(dfs, start=1):
+        cond = d.get("condominio_nome") or "Generale"
+        prio = d.get("priorita") or "P2"
+        prio_icon = "🔴" if prio == "P1" else "🟡"
+        scad = d.get("data_scadenza") or "N.D."
+        titolo = d.get("titolo") or "Compito"
+        stato = d.get("stato") or "Nuova"
+        forn = d.get("fornitore") or "Studio Serra"
+        msg += f"*{idx}.* {prio_icon} `[{prio}]` *{cond}*\n   📌 {titolo}\n   📅 Scadenza/Piano: *{scad}* | Stato: _{stato}_\n   👤 Assegnato: _{forn}_\n\n"
+    invia_messaggio(chat_id, msg, TASTIERA_PRINCIPALE)
+
 def invia_elenco_scadenze(chat_id: str):
-    scs = crm_service.elenca_scadenze_crm(solo_attive=True, limite=10)
+    scs = crm_service.elenca_scadenze_crm(solo_attive=True, limite=12)
     if not scs:
         invia_messaggio(chat_id, "✅ *Nessuna scadenza imminente.* Tutti gli adempimenti e CPI sono in regola!", TASTIERA_SCADENZE)
         return
-    msg = f"🔥 *SCADENZE, CPI & ATTIVITÀ OBBLIGATORIE ({len(scs)})*\n────────────────────────\n"
+    msg = f"🔥 *SCADENZARIO & RINNOVI CPI CRM ({len(scs)})*\n────────────────────────\n"
     for idx, s in enumerate(scs, start=1):
         cond = s.get("condominio_nome") or "Studio"
         titolo = s.get("titolo") or "Attività"
-        tipo = s.get("tipo") or "Generale"
+        tipo = s.get("tipo") or "CPI"
         dt = s.get("data_scadenza") or "N.D."
-        msg += f"*{idx}.* 📅 *{dt}* — {tipo.upper()}\n   🏢 *{cond}*\n   📝 {titolo}\n\n"
+        giorni = s.get("giorni_rimasti")
+        badge = f" (tra {giorni} gg)" if giorni is not None and giorni >= 0 else (f" (⚠️ SCADUTA da {abs(giorni)} gg)" if giorni is not None else "")
+        forn = s.get("fornitore") or "Da assegnare"
+        msg += f"*{idx}.* 📅 *{dt}*{badge} — *{tipo}*\n   🏢 *{cond}*\n   📌 {titolo}\n   🔧 Ditta/Tecnico: _{forn}_\n\n"
     invia_messaggio(chat_id, msg, TASTIERA_SCADENZE)
 
 def invia_elenco_fornitori(chat_id: str, filtro: Optional[str] = None):
@@ -372,6 +394,14 @@ def gestisci_update_telegram(item: dict) -> bool:
                 "🛠️ *NUOVO TICKET NEL CRM — STEP 1 di 3*\n\nSeleziona il Condominio associato al guasto:",
                 {"keyboard": pulsanti, "resize_keyboard": True}
             )
+            return True
+
+        # -------------------------------------------------------------
+        # 4b. GESTIONE DA FARE & PRATICHE CRM
+        # -------------------------------------------------------------
+        if testo_msg in ["📋 Da Fare", "/dafare", "/compiti", "/pratiche", "da fare", "dafare"]:
+            stato_utenti[chat_id] = get_stato_default()
+            invia_elenco_dafare(chat_id)
             return True
 
         # -------------------------------------------------------------

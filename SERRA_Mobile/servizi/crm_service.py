@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import json
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 
@@ -7,6 +8,44 @@ try:
     import config
 except ImportError:
     from .. import config
+
+def _get_json_path(filename: str) -> Optional[str]:
+    cands = [
+        os.path.join("/app/data", filename),
+        os.path.join("/data/assistente", filename),
+        os.path.join("/data/dettofatto", filename),
+        os.path.join(config.BASE_DIR, "..", "..", "DettoFattoMCP", "portale2", "data", filename),
+        os.path.join(config.BASE_DIR, "..", "data", filename),
+        os.path.join(config.BASE_DIR, filename),
+    ]
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    return None
+
+def carica_scadenze_json() -> List[Dict[str, Any]]:
+    p = _get_json_path("scadenze.json")
+    if p and os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            print(f"⚠️ Errore lettura scadenze.json ({p}): {e}")
+    return []
+
+def carica_practices_json() -> List[Dict[str, Any]]:
+    p = _get_json_path("practices.json")
+    if p and os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            print(f"⚠️ Errore lettura practices.json ({p}): {e}")
+    return []
 
 def _get_connection() -> Optional[sqlite3.Connection]:
     db_path = config.CRM_DB_PATH
@@ -255,8 +294,67 @@ def crea_ticket_crm(condominio_id_o_nome: Any, titolo: str, descrizione: str = "
     finally:
         conn.close()
 
+import re
+
+def elenca_dafare_crm(limite: int = 20) -> List[Dict[str, Any]]:
+    """Elenca le pratiche e i Da Fare reali dello Studio dal file practices.json."""
+    raw = carica_practices_json()
+    risultati = []
+    closed = {"chiusa", "completata", "conclusa", "annullata", "risolta"}
+    for p in raw:
+        st = str(p.get("status", "")).lower().strip()
+        if st in closed:
+            continue
+        plan = p.get("plannedAt") or ""
+        dt_str = plan[:10] if plan else "N.D."
+        titolo_pulito = re.sub(r"^\[[^\]]+\]\s*", "", str(p.get("title", "")))
+        risultati.append({
+            "id": p.get("id"),
+            "titolo": titolo_pulito,
+            "condominio_nome": p.get("building") or "Generale",
+            "tipo": "Da Fare",
+            "priorita": p.get("priority") or "P2",
+            "stato": p.get("status") or "Nuova",
+            "data_scadenza": dt_str,
+            "fornitore": p.get("supplier") or p.get("assignedTo") or "Studio Serra",
+            "note": p.get("note") or ""
+        })
+    # Ordina per data di scadenza/pianificazione
+    risultati.sort(key=lambda x: (x["data_scadenza"] == "N.D.", x["data_scadenza"], x["priorita"]))
+    return risultati[:limite]
+
 def elenca_scadenze_crm(solo_attive: bool = True, limite: int = 15) -> List[Dict[str, Any]]:
-    """Elenca le scadenze e compiti dal CRM."""
+    """Elenca le scadenze CPI e compiti reali dal CRM (scadenze.json e practices.json)."""
+    # 1. Prova prima dal file scadenze.json (dati reali dell'app web)
+    scad_raw = carica_scadenze_json()
+    if scad_raw:
+        risultati = []
+        today_str = date.today().isoformat()
+        for s in scad_raw:
+            due = s.get("dueDate", "")
+            # calcola giorni rimanenti
+            giorni = 0
+            if due:
+                try:
+                    d_obj = datetime.strptime(due[:10], "%Y-%m-%d").date()
+                    giorni = (d_obj - date.today()).days
+                except Exception:
+                    giorni = 999
+            risultati.append({
+                "id": s.get("id"),
+                "titolo": s.get("title", ""),
+                "tipo": s.get("category", "CPI / Scadenza"),
+                "data_scadenza": due[:10] if due else "N.D.",
+                "condominio_nome": s.get("building", ""),
+                "fornitore": s.get("supplier", "Da assegnare"),
+                "priorita": "P1" if giorni <= 15 else "P2",
+                "giorni_rimasti": giorni,
+                "completato": 0
+            })
+        risultati.sort(key=lambda x: x["data_scadenza"])
+        return risultati[:limite]
+
+    # 2. Fallback su database SQLite se scadenze.json non è presente
     risultati = []
     conn = _get_connection()
     if not conn:
