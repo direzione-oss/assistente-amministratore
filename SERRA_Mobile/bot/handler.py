@@ -95,6 +95,29 @@ TASTIERA_ANNULLA = {
     "resize_keyboard": True
 }
 
+def genera_tastiera_selezione_condomini() -> Dict[str, Any]:
+    """
+    Genera una tastiera a 2 colonne contenente tutti i condomìni dello Studio
+    in ordine alfabetico, comoda e ottimizzata per smartphone.
+    """
+    condomini = df.ottieni_tutti_condomini()
+    righe = []
+    riga_corrente = []
+    for c in condomini:
+        nome_breve = str(c.get("name", "")).strip()[:35]
+        if not nome_breve:
+            continue
+        riga_corrente.append({"text": nome_breve})
+        if len(riga_corrente) == 2:
+            righe.append(riga_corrente)
+            riga_corrente = []
+    if riga_corrente:
+        righe.append(riga_corrente)
+
+    # In cima pulsante Annulla
+    righe.insert(0, [{"text": "❌ Annulla"}])
+    return {"keyboard": righe, "resize_keyboard": True}
+
 stato_utenti: Dict[str, Dict[str, Any]] = {}
 
 def get_stato_default() -> Dict[str, Any]:
@@ -390,13 +413,10 @@ def gestisci_update_telegram(item: dict) -> bool:
         if testo_msg in ["➕ Apri Nuovo Ticket", "/nuovoticket"]:
             stato_utenti[chat_id] = get_stato_default()
             stato_utenti[chat_id]["tipo"] = "ticket_condo"
-            conds = [c.get("name", "")[:35].strip() for c in df.condomini_in_memoria][:50]
-            pulsanti = [[{"text": n}] for n in conds]
-            pulsanti.insert(0, [{"text": "❌ Annulla"}])
             invia_messaggio(
                 chat_id,
-                "🛠️ *NUOVO TICKET NEL CRM — STEP 1 di 3*\n\nSeleziona il Condominio associato al guasto:",
-                {"keyboard": pulsanti, "resize_keyboard": True}
+                "🛠️ *NUOVO TICKET NEL CRM — STEP 1 di 3*\n\nSeleziona il Condominio associato al guasto (oppure digita il nome):",
+                genera_tastiera_selezione_condomini()
             )
             return True
 
@@ -423,13 +443,10 @@ def gestisci_update_telegram(item: dict) -> bool:
         if testo_msg in ["➕ Nuova Scadenza", "/nuovascadenza"]:
             stato_utenti[chat_id] = get_stato_default()
             stato_utenti[chat_id]["tipo"] = "scadenza_condo"
-            conds = [c.get("name", "")[:35].strip() for c in df.condomini_in_memoria][:50]
-            pulsanti = [[{"text": n}] for n in conds]
-            pulsanti.insert(0, [{"text": "❌ Annulla"}])
             invia_messaggio(
                 chat_id,
-                "🔥 *NUOVA SCADENZA CRM — STEP 1 di 3*\n\nSeleziona il Condominio per la scadenza/task:",
-                {"keyboard": pulsanti, "resize_keyboard": True}
+                "🔥 *NUOVA SCADENZA CRM — STEP 1 di 3*\n\nSeleziona il Condominio per la scadenza/task (oppure digita il nome):",
+                genera_tastiera_selezione_condomini()
             )
             return True
 
@@ -524,45 +541,60 @@ def gestisci_update_telegram(item: dict) -> bool:
                 "appunti": "",
                 "temp_data": {}
             }
-            nomi_condomini = [c.get("name", "")[:35].strip() for c in df.condomini_in_memoria][:60]
-            pulsanti = [[{"text": n}] for n in nomi_condomini]
-            pulsanti.insert(0, [{"text": "❌ Annulla"}])
+            tastiera_condo = genera_tastiera_selezione_condomini()
+            totale_cond = len(df.ottieni_tutti_condomini())
             invia_messaggio(
                 chat_id,
-                f"⚙️ *MODULO {tipo_rilievo.upper()} DA CAMPO*\n\nSeleziona il Condominio oggetto del sopralluogo:",
-                {"keyboard": pulsanti, "resize_keyboard": True}
+                f"⚙️ *MODULO {tipo_rilievo.upper()} DA CAMPO*\n\n"
+                f"👇 Seleziona il **Condominio** dall'elenco sottostante ({totale_cond} condomìni in ordine A-Z)\n"
+                f"oppure digita direttamente il nome (es. _Betulla_, _Fornace_, _Borgo_):",
+                tastiera_condo
             )
             return True
 
         # -------------------------------------------------------------
         # 10. CHIUSURA REPORT SOPRALLUOGO / INTERVENTO
         # -------------------------------------------------------------
-        if testo_msg == "✅ CHIUDI E GENERA DOC":
+        if testo_msg == "✅ CHIUDI E GENERA DOC" or "chiudi e genera doc" in low:
             cond = stato_utenti[chat_id].get("condominio") or "Condominio Studio Serra"
             data = stato_utenti[chat_id].get("data") or datetime.now().strftime("%d/%m/%Y")
             tipo = stato_utenti[chat_id].get("tipo", "sopralluogo")
             if tipo not in ["sopralluogo", "intervento"]:
                 tipo = "sopralluogo"
 
-            invia_messaggio(chat_id, "⏳ _Elaborazione report tecnico con IA e generazione documenti in corso..._", {"remove_keyboard": True})
-
-            appunti = stato_utenti[chat_id].get("appunti", "")
             foto_paths = stato_utenti[chat_id].get("foto", [])
+            appunti = stato_utenti[chat_id].get("appunti", "")
+
+            invia_messaggio(
+                chat_id,
+                f"⏳ *Elaborazione report tecnico con IA e generazione documenti Word & PDF...*\n\n"
+                f"🏢 *Condominio:* {cond}\n"
+                f"📅 *Data:* {data}\n"
+                f"📸 *Foto allegate:* {len(foto_paths)}",
+                {"remove_keyboard": True}
+            )
+
             testo_completo = appunti
             for f in foto_paths:
-                if f.get("caption"):
+                if isinstance(f, dict) and f.get("caption"):
                     testo_completo += f" {f['caption']}"
 
+            # 1. Sintesi tecnica IA
             t_ia = genera_testo_ia(cond, testo_completo, data, tipo=tipo)
+
+            # 2. Generazione Word e PDF
             p_doc, p_pdf = crea_word_e_pdf(cond, t_ia, foto_paths, data, appunti, tipo=tipo)
 
-            # Invia verbale su Telegram
+            # 3. Invio file su Telegram
+            pdf_inviato = False
             if p_pdf and os.path.exists(p_pdf):
-                invia_documento_telegram(chat_id, p_pdf, f"📄 Verbale {tipo.capitalize()} PDF - {cond}")
-            elif p_doc and os.path.exists(p_doc):
-                invia_documento_telegram(chat_id, p_doc, f"📄 Verbale {tipo.capitalize()} Word - {cond}")
+                pdf_inviato = invia_documento_telegram(chat_id, p_pdf, f"📄 Verbale {tipo.capitalize()} PDF — {cond}")
+            
+            doc_inviato = False
+            if p_doc and os.path.exists(p_doc):
+                doc_inviato = invia_documento_telegram(chat_id, p_doc, f"📝 Verbale {tipo.capitalize()} Word (modificabile) — {cond}")
 
-            # Se è intervento, registra il ticket nel CRM e sincronizza
+            # 4. Registrazione ticket CRM se intervento
             tk_creato = None
             if tipo == "intervento":
                 tk_creato = crm_service.crea_ticket_crm(
@@ -574,10 +606,18 @@ def gestisci_update_telegram(item: dict) -> bool:
                 )
                 df.apri_ticket_dettofatto(cond, t_ia, p_doc, data)
 
-            msg_fine = f"✅ *REPORT {tipo.upper()} COMPLETATO E ARCHIVIATO NEL CRM!*\n\n*Condominio:* {cond}\n*Data:* {data}\n"
+            msg_fine = (
+                f"✅ *REPORT {tipo.upper()} COMPLETATO E ARCHIVIATO!*\n\n"
+                f"🏢 *Condominio:* {cond}\n"
+                f"📅 *Data:* {data}\n"
+                f"📸 *Foto acquisite:* {len(foto_paths)}\n"
+            )
             if tk_creato:
                 msg_fine += f"🛠️ *Nuovo Ticket CRM:* `{tk_creato.get('codice')}` (Stato: Aperto)\n"
-            msg_fine += f"\n_Sintesi Tecnica:_\n{t_ia}\n\n📁 I file DOCX e PDF sono consultabili subito nella sezione *Rilievi & Sopralluoghi* del CRM."
+            msg_fine += (
+                f"\n📋 *Sintesi Tecnica:*\n{t_ia}\n\n"
+                f"📁 I file Word e PDF sono stati inviati qui sopra e salvati nella sezione *Rilievi & Sopralluoghi* del CRM."
+            )
 
             stato_utenti[chat_id] = get_stato_default()
             invia_messaggio(chat_id, msg_fine, TASTIERA_PRINCIPALE)
@@ -595,35 +635,85 @@ def gestisci_update_telegram(item: dict) -> bool:
             cond_attuale = stato_utenti[chat_id].get("condominio")
             data_attuale = stato_utenti[chat_id].get("data")
 
+            # FASE 1: Scelta Condominio
             if cond_attuale is None:
-                stato_utenti[chat_id]["condominio"] = testo_msg.replace("🏢 ", "").strip()
+                testo_pulito = testo_msg.replace("🏢", "").replace("📋", "").strip()
+                tutti_c = df.ottieni_tutti_condomini()
+
+                # Ricerca match esatto
+                match_esatto = next((c for c in tutti_c if c.get("name", "").strip().upper() == testo_pulito.upper()), None)
+
+                # Ricerca per contenimento
+                if not match_esatto:
+                    matches = [c for c in tutti_c if testo_pulito.upper() in c.get("name", "").upper()]
+                    if len(matches) == 1:
+                        match_esatto = matches[0]
+                    elif len(matches) > 1 and len(matches) <= 8:
+                        pulsanti_sub = [[{"text": m.get("name", "")}] for m in matches]
+                        pulsanti_sub.append([{"text": "❌ Annulla"}])
+                        invia_messaggio(
+                            chat_id,
+                            f"🔍 Ho trovato *{len(matches)}* condomìni corrispondenti a *\"{testo_pulito}\"*.\nTocca quello desiderato:",
+                            {"keyboard": pulsanti_sub, "resize_keyboard": True}
+                        )
+                        return True
+
+                nome_selezionato = match_esatto.get("name") if match_esatto else testo_pulito
+                stato_utenti[chat_id]["condominio"] = nome_selezionato
                 invia_messaggio(
                     chat_id,
-                    f"✅ Condominio: *{stato_utenti[chat_id]['condominio']}*\n\nSeleziona la data del rilievo:",
+                    f"🏢 *Condominio selezionato:* {nome_selezionato}\n\n"
+                    f"Seleziona la data del rilievo (oppure digita una data, es. `GG/MM/AAAA`):",
                     {"keyboard": [[{"text": "📅 Usa data di oggi"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True}
                 )
                 return True
+
+            # FASE 2: Scelta Data
             elif data_attuale is None:
-                stato_utenti[chat_id]["data"] = datetime.now().strftime("%d/%m/%Y") if testo_msg == "📅 Usa data di oggi" else testo_msg
+                if testo_msg == "📅 Usa data di oggi" or "oggi" in testo_msg.lower():
+                    data_sel = datetime.now().strftime("%d/%m/%Y")
+                else:
+                    data_sel = testo_msg.strip()
+                stato_utenti[chat_id]["data"] = data_sel
+                cond_nome = stato_utenti[chat_id].get("condominio") or "Condominio"
                 invia_messaggio(
                     chat_id,
-                    f"✅ Data: *{stato_utenti[chat_id]['data']}*\n\n"
-                    "📸 Invia ora le **foto** (puoi allegare didascalie) e scrivi **note/appunti**.\n"
-                    "Quando hai terminato, premi il pulsante verde:",
+                    f"✅ *SESSIONE {tipo_attuale.upper()} ATTIVA*\n"
+                    f"🏢 Condominio: *{cond_nome}*\n"
+                    f"📅 Data: *{data_sel}*\n────────────────────────\n\n"
+                    "📸 **Invia le FOTO** (puoi allegare didascalie a ogni scatto).\n"
+                    "📝 **Invia NOTE testuali o VOCALI** per descrivere anomalie e verifiche.\n\n"
+                    "👉 Quando hai terminato, premi il pulsante sotto:\n"
+                    "*✅ CHIUDI E GENERA DOC*",
                     {"keyboard": [[{"text": "✅ CHIUDI E GENERA DOC"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True}
                 )
                 return True
+
+            # FASE 3: Acquisizione Foto e Note
             else:
-                didascalia = testo_msg if testo_msg != "✅ CHIUDI E GENERA DOC" else ""
+                didascalia = testo_msg if (testo_msg != "✅ CHIUDI E GENERA DOC" and "chiudi e genera doc" not in low) else ""
                 if has_photo:
                     path = scarica_foto_telegram(msg["photo"][-1]["file_id"], cartella_temp)
                     if path:
                         stato_utenti[chat_id]["foto"].append({"path": path, "caption": didascalia})
                         n_tot = len(stato_utenti[chat_id]["foto"])
-                        invia_messaggio(chat_id, f"📸 Foto {n_tot} acquisita e aggiunta al report.")
+                        didasc_txt = f"\n_Didascalia: {didascalia}_" if didascalia else ""
+                        invia_messaggio(
+                            chat_id,
+                            f"📸 **Foto {n_tot} acquisita con successo!**{didasc_txt}\n\n"
+                            "Puoi inviare altre foto/note oppure premere:\n*✅ CHIUDI E GENERA DOC*",
+                            {"keyboard": [[{"text": "✅ CHIUDI E GENERA DOC"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True}
+                        )
+                        return True
                 elif didascalia:
-                    stato_utenti[chat_id]["appunti"] += f"\n- {didascalia}"
-                    invia_messaggio(chat_id, "📝 Nota salvata per il verbale.")
+                    stato_utenti[chat_id]["appunti"] += f"\n• {didascalia}"
+                    invia_messaggio(
+                        chat_id,
+                        f"📝 **Nota registrata:**\n_{didascalia}_\n\n"
+                        "Puoi inviare altre foto/note oppure premere:\n*✅ CHIUDI E GENERA DOC*",
+                        {"keyboard": [[{"text": "✅ CHIUDI E GENERA DOC"}], [{"text": "❌ Annulla"}]], "resize_keyboard": True}
+                    )
+                    return True
                 return True
 
         # -------------------------------------------------------------
@@ -886,13 +976,10 @@ def gestisci_update_telegram(item: dict) -> bool:
                 "appunti": testo_msg if not path else "",
                 "temp_data": {}
             }
-            nomi = [c.get("name", "")[:35].strip() for c in df.condomini_in_memoria][:50]
-            pulsanti = [[{"text": n}] for n in nomi]
-            pulsanti.insert(0, [{"text": "❌ Annulla"}])
             invia_messaggio(
                 chat_id,
-                "📸 *FOTO RICEVUTA!*\nAvvio acquisizione **Sopralluogo Tecnico** (Foto 1 salvata).\n\nSeleziona il Condominio associato:",
-                {"keyboard": pulsanti, "resize_keyboard": True}
+                "📸 *FOTO RICEVUTA!*\nAvvio acquisizione **Sopralluogo Tecnico** (Foto 1 salvata).\n\nSeleziona il Condominio associato (oppure digita il nome):",
+                genera_tastiera_selezione_condomini()
             )
             return True
 

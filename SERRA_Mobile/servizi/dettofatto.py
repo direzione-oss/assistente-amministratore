@@ -16,6 +16,16 @@ except ImportError:
 
 condomini_in_memoria: List[Dict[str, Any]] = []
 
+def ottieni_tutti_condomini() -> List[Dict[str, Any]]:
+    """
+    Ritorna sempre l'elenco completo di tutti i condomini attivi ordinati alfabeticamente.
+    Se la memoria è vuota, effettua la sincronizzazione automatica.
+    """
+    global condomini_in_memoria
+    if not condomini_in_memoria:
+        sincronizza_condomini()
+    return condomini_in_memoria
+
 def sincronizza_condomini() -> List[Dict[str, Any]]:
     """
     Carica l'elenco condomini dal database CRM (studio_condominiale.db)
@@ -24,10 +34,19 @@ def sincronizza_condomini() -> List[Dict[str, Any]]:
     global condomini_in_memoria
     condomini_in_memoria.clear()
 
-    # 1. Tentativo da database SQLite del CRM
-    if os.path.exists(config.CRM_DB_PATH):
+    # 1. Tentativo da database SQLite del CRM con percorsi candidati
+    candidate_dbs = [
+        getattr(config, "CRM_DB_PATH", ""),
+        "/app/data/studio_condominiale.db",
+        "/data/assistente/studio_condominiale.db",
+        os.path.join(getattr(config, "BASE_DIR", "."), "..", "backend", "studio_condominiale.db"),
+        os.path.join(getattr(config, "BASE_DIR", "."), "studio_condominiale.db")
+    ]
+    db_trovato = next((p for p in candidate_dbs if p and os.path.exists(p)), None)
+
+    if db_trovato:
         try:
-            conn = sqlite3.connect(config.CRM_DB_PATH)
+            conn = sqlite3.connect(db_trovato)
             c = conn.cursor()
             cols = [r[1] for r in c.execute("PRAGMA table_info(condomini)").fetchall()]
             query = "SELECT id, nome, codice_danea, indirizzo FROM condomini "
@@ -37,23 +56,33 @@ def sincronizza_condomini() -> List[Dict[str, Any]]:
             rows = c.execute(query).fetchall()
             if rows:
                 for r in rows:
-                    condomini_in_memoria.append({
-                        "id": r[0],
-                        "name": r[1],
-                        "code": r[2] or "",
-                        "address": r[3] or "",
-                    })
+                    nome_pulito = str(r[1] or "").strip()
+                    if nome_pulito:
+                        condomini_in_memoria.append({
+                            "id": r[0],
+                            "name": nome_pulito,
+                            "code": r[2] or "",
+                            "address": r[3] or "",
+                        })
                 conn.close()
-                print(f"✅ [DETTOFATTO/CRM] Caricati {len(condomini_in_memoria)} condomini dal DB locale.")
+                condomini_in_memoria.sort(key=lambda x: x["name"].upper())
+                print(f"✅ [DETTOFATTO/CRM] Caricati {len(condomini_in_memoria)} condomini dal DB ({db_trovato}).")
                 return condomini_in_memoria
             conn.close()
         except Exception as e_db:
             print(f"⚠️ Errore lettura condomini dal DB: {e_db}")
 
     # 2. Fallback da condominiStudioSerra.json
-    if os.path.exists(config.CONDOMINI_JSON_PATH):
+    candidate_jsons = [
+        getattr(config, "CONDOMINI_JSON_PATH", ""),
+        "/app/frontend/src/data/condominiStudioSerra.json",
+        os.path.join(getattr(config, "BASE_DIR", "."), "..", "frontend", "src", "data", "condominiStudioSerra.json")
+    ]
+    json_trovato = next((p for p in candidate_jsons if p and os.path.exists(p)), None)
+
+    if json_trovato:
         try:
-            with open(config.CONDOMINI_JSON_PATH, "r", encoding="utf-8") as f:
+            with open(json_trovato, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 for item in data:
                     nome = item.get("nome", "").strip()
@@ -64,18 +93,24 @@ def sincronizza_condomini() -> List[Dict[str, Any]]:
                             "code": item.get("codice_danea", ""),
                             "address": item.get("indirizzo", ""),
                         })
-                print(f"✅ [DETTOFATTO/CRM] Caricati {len(condomini_in_memoria)} condomini dal JSON di fallback.")
+                condomini_in_memoria.sort(key=lambda x: x["name"].upper())
+                print(f"✅ [DETTOFATTO/CRM] Caricati {len(condomini_in_memoria)} condomini dal JSON di fallback ({json_trovato}).")
                 return condomini_in_memoria
         except Exception as e_json:
             print(f"⚠️ Errore lettura condomini da JSON: {e_json}")
 
     # 3. Lista minima predefinita di sicurezza
     fallback_nomi = [
-        "AMBIVERI B", "ALLA FORNACE BERGAMINA", "AUTOSTRADA 1", "CURNO NUOVA",
-        "SAN BERNARDINO 77", "SETTE TORRI", "TRIESTE 15", "VERDI 4", "VITTORIO EMANUELE"
+        "ALLA FORNACE BERGAMINA", "AMBIVERI B", "AUTOSTRADA 1", "BETULLA",
+        "BORGO PALAZZO 48", "BORGO PALAZZO CLEMENTINA", "BORGO SANTA CATERINA",
+        "CURNO NUOVA", "EUROPA", "GINESTRA", "IL SOLE 23", "LA PRIMULA",
+        "NINFEA", "ROMANO", "SAN BERNARDINO 77", "SAN PIETRO", "SETTE TORRI",
+        "TRECOURT", "TRIESTE 15", "V. DAMIANO CHIESA 20", "VERDI 4", "VIA CONTE GHISALBERTO",
+        "VIA MARTINEL", "VIA PALMA IL VECCHIO 20A", "VITTORIO EMANUELE"
     ]
     for idx, f_nome in enumerate(fallback_nomi, 1):
         condomini_in_memoria.append({"id": idx, "name": f_nome, "code": f"CND-{idx}", "address": "Bergamo"})
+    condomini_in_memoria.sort(key=lambda x: x["name"].upper())
     return condomini_in_memoria
 
 def _invia_mcp_dettofatto(nome_condominio: str, testo_ticket: str) -> Optional[str]:

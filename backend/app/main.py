@@ -244,6 +244,13 @@ def on_startup():
     finally:
         db.close()
 
+    try:
+        import servizi.dettofatto as df
+        df.sincronizza_condomini()
+        print("🏢 [STARTUP] Condomini Studio Serra sincronizzati in memoria.")
+    except Exception as e_c:
+        print(f"⚠️ [STARTUP] Sincronizzazione condomini: {e_c}")
+
     if os.environ.get("AUTOSTART_SERRA_BOT", "true").lower() in ("true", "1", "yes"):
         try:
             start_serra_mobile_bot()
